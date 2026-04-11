@@ -20,7 +20,6 @@
 	const dispatch = createEventDispatcher();
 
 	import {
-		type HermesContextSummary,
 		type Model,
 		mobile,
 		settings,
@@ -90,6 +89,7 @@
 	import TerminalMenu from './MessageInput/TerminalMenu.svelte';
 	import Component from '../icons/Component.svelte';
 	import PlusAlt from '../icons/PlusAlt.svelte';
+	import Dropdown from '../common/Dropdown.svelte';
 
 	import CommandSuggestionList from './MessageInput/CommandSuggestionList.svelte';
 	import Knobs from '../icons/Knobs.svelte';
@@ -99,8 +99,6 @@
 	import InputModal from '../common/InputModal.svelte';
 	import Expand from '../icons/Expand.svelte';
 	import QueuedMessageItem from './MessageInput/QueuedMessageItem.svelte';
-	import HermesRunContextStrip from '$lib/components/hermes/context/HermesRunContextStrip.svelte';
-	import HermesComposerOverflowMenu from '$lib/components/hermes/composer/HermesComposerOverflowMenu.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -113,11 +111,6 @@
 	export let autoScroll = false;
 	export let generating = false;
 	export let uploadPending = false;
-	export let hermesMode = false;
-	export let hermesContextSummary: HermesContextSummary | null = null;
-	export let onOpenHermesControlsTarget: (
-		target: 'workspace' | 'profile' | 'context' | 'tasks'
-	) => void = () => {};
 
 	export let atSelectedModel: Model | undefined = undefined;
 	export let selectedModels: [''];
@@ -141,7 +134,6 @@
 	export let pendingOAuthTools = [];
 
 	let showTerminalMenu = false;
-	let previousHermesMode = hermesMode;
 
 	export let messageQueue: { id: string; prompt: string; files: any[] }[] = [];
 	export let onQueueSendNow: (id: string) => void = () => {};
@@ -181,51 +173,6 @@
 		webSearchEnabled,
 		codeInterpreterEnabled
 	});
-
-	$: composerPlaceholder = placeholder
-		? placeholder
-		: hermesMode
-			? $i18n.t('Ask Hermes to inspect context, use the workspace, or continue the current run.')
-			: $i18n.t('Send a Message');
-
-	$: canUseDirectTerminalServers =
-		$_user?.role === 'admin' || ($_user?.permissions?.features?.direct_tool_servers ?? true);
-	$: visibleSystemTerminals = ($terminalServers ?? []).filter((terminal) => terminal.id);
-	$: visibleDirectTerminals = canUseDirectTerminalServers
-		? ($settings?.terminalServers ?? []).filter((terminal) => terminal.url)
-		: [];
-	$: selectedHermesSystemTerminal = visibleSystemTerminals.find(
-		(terminal) => terminal.id === $selectedTerminalId
-	);
-	$: selectedHermesDirectTerminal = visibleDirectTerminals.find(
-		(terminal) => terminal.url === $selectedTerminalId
-	);
-	$: selectedHermesTerminalLabel =
-		selectedHermesSystemTerminal?.name ||
-		selectedHermesSystemTerminal?.id ||
-		selectedHermesDirectTerminal?.name ||
-		selectedHermesDirectTerminal?.url?.replace(/^https?:\/\//, '') ||
-		'';
-	$: hasTerminalAccess = visibleSystemTerminals.length > 0 || visibleDirectTerminals.length > 0;
-	$: canDictate = $_user?.role === 'admin' || ($_user?.permissions?.chat?.stt ?? true);
-	$: canCreateNote =
-		prompt !== '' &&
-		!history?.currentId &&
-		!$selectedTerminalId &&
-		($config?.features?.enable_notes ?? false) &&
-		($_user?.role === 'admin' || ($_user?.permissions?.features?.notes ?? true));
-	$: hermesCapabilityStateCount =
-		(selectedToolIds?.length ?? 0) +
-		(selectedFilterIds?.length ?? 0) +
-		(webSearchEnabled ? 1 : 0) +
-		(imageGenerationEnabled ? 1 : 0) +
-		(codeInterpreterEnabled ? 1 : 0) +
-		(pendingOAuthTools?.length ?? 0);
-
-	$: if (previousHermesMode !== hermesMode) {
-		showTerminalMenu = false;
-		previousHermesMode = hermesMode;
-	}
 
 	const inputVariableHandler = async (text: string): Promise<string> => {
 		inputVariables = extractInputVariables(text);
@@ -508,23 +455,14 @@
 	export let placeholder = '';
 
 	let visionCapableModels = [];
-	$: visionCapableModels = hermesMode
-		? atSelectedModel?.id
-			? [atSelectedModel.id]
-			: selectedModels
-		: (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
-				(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
-			);
+	$: visionCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
+		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
+	);
 
 	let fileUploadCapableModels = [];
-	$: fileUploadCapableModels = hermesMode
-		? atSelectedModel?.id
-			? [atSelectedModel.id]
-			: selectedModels
-		: (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
-				(model) =>
-					$models.find((m) => m.id === model)?.info?.meta?.capabilities?.file_upload ?? true
-			);
+	$: fileUploadCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
+		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.file_upload ?? true
+	);
 
 	let webSearchCapableModels = [];
 	$: webSearchCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
@@ -548,29 +486,15 @@
 	);
 
 	let toggleFilters = [];
-	$: {
-		if (hermesMode) {
-			toggleFilters = [];
-		} else {
-			const filterGroups = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).map(
-				(id) => ($models.find((model) => model.id === id) || {})?.filters ?? []
-			);
-
-			toggleFilters =
-				filterGroups.length > 0
-					? filterGroups.reduce((acc, filters) =>
-							acc.filter((f1) => filters.some((f2) => f2.id === f1.id))
-						)
-					: [];
-		}
-	}
+	$: toggleFilters = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels)
+		.map((id) => ($models.find((model) => model.id === id) || {})?.filters ?? [])
+		.reduce((acc, filters) => acc.filter((f1) => filters.some((f2) => f2.id === f1.id)));
 
 	let showToolsButton = false;
 	$: showToolsButton = ($tools ?? []).length > 0 || ($toolServers ?? []).length > 0;
 
 	let showWebSearchButton = false;
 	$: showWebSearchButton =
-		!hermesMode &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			webSearchCapableModels.length &&
 		$config?.features?.enable_web_search &&
@@ -578,7 +502,6 @@
 
 	let showImageGenerationButton = false;
 	$: showImageGenerationButton =
-		!hermesMode &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			imageGenerationCapableModels.length &&
 		$config?.features?.enable_image_generation &&
@@ -586,27 +509,11 @@
 
 	let showCodeInterpreterButton = false;
 	$: showCodeInterpreterButton =
-		!hermesMode &&
 		!$selectedTerminalId &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			codeInterpreterCapableModels.length &&
 		$config?.features?.enable_code_interpreter &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter);
-
-	$: if (hermesMode) {
-		if (selectedFilterIds.length > 0) {
-			selectedFilterIds = [];
-		}
-		if (webSearchEnabled) {
-			webSearchEnabled = false;
-		}
-		if (imageGenerationEnabled) {
-			imageGenerationEnabled = false;
-		}
-		if (codeInterpreterEnabled) {
-			codeInterpreterEnabled = false;
-		}
-	}
 
 	// Disable code interpreter when terminal is active (mutually exclusive)
 	$: if ($selectedTerminalId && codeInterpreterEnabled) {
@@ -665,7 +572,7 @@
 			return null;
 		}
 
-		if (!hermesMode && fileUploadCapableModels.length !== selectedModels.length) {
+		if (fileUploadCapableModels.length !== selectedModels.length) {
 			toast.error($i18n.t('Model(s) do not support file upload'));
 			return null;
 		}
@@ -807,7 +714,7 @@
 			}
 
 			if (file['type'].startsWith('image/')) {
-				if (!hermesMode && visionCapableModels.length === 0) {
+				if (visionCapableModels.length === 0) {
 					toast.error($i18n.t('Selected model(s) do not support image inputs'));
 					return;
 				}
@@ -898,32 +805,6 @@
 		}
 	};
 
-	const startDictation = async () => {
-		try {
-			let stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch(function (err) {
-				toast.error(
-					$i18n.t(`Permission denied when accessing microphone: {{error}}`, {
-						error: err
-					})
-				);
-				return null;
-			});
-
-			if (stream) {
-				recording = true;
-				const tracks = stream.getTracks();
-				tracks.forEach((track) => track.stop());
-			}
-			stream = null;
-		} catch {
-			toast.error($i18n.t('Permission denied when accessing microphone'));
-		}
-	};
-
-	const openTerminalSelector = () => {
-		showTerminalMenu = true;
-	};
-
 	const onDragOver = (e: DragEvent) => {
 		e.preventDefault();
 
@@ -998,7 +879,8 @@
 				// Confirm and stop recording
 				document.getElementById('confirm-recording-button')?.click();
 			} else {
-				void startDictation();
+				// Start recording (same logic as voice-input-button click)
+				document.getElementById('voice-input-button')?.click();
 			}
 			return;
 		}
@@ -1405,7 +1287,7 @@
 														alt=""
 														imageClassName=" size-10 rounded-xl object-cover"
 													/>
-													{#if !hermesMode && (atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length)}
+													{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
 														<Tooltip
 															className=" absolute top-1 left-1"
 															content={$i18n.t('{{ models }}', {
@@ -1534,7 +1416,7 @@
 															navigator.maxTouchPoints > 0 ||
 															navigator.msMaxTouchPoints > 0
 														)}
-													placeholder={composerPlaceholder}
+													placeholder={placeholder ? placeholder : $i18n.t('Send a Message')}
 													largeTextAsFile={($settings?.largeTextAsFile ?? false) && !shiftKey}
 													autocomplete={$config?.features?.enable_autocomplete_generation &&
 														($settings?.promptAutocomplete ?? false)}
@@ -1678,23 +1560,10 @@
 								</div>
 							</div>
 
-							{#if hermesMode && hermesContextSummary}
-								<div class="mb-2 px-1">
-									<HermesRunContextStrip
-										summary={hermesContextSummary}
-										on:workspace={() => onOpenHermesControlsTarget('workspace')}
-										on:profile={() => onOpenHermesControlsTarget('profile')}
-										on:session={() => onOpenHermesControlsTarget('context')}
-										on:tasks={() => onOpenHermesControlsTarget('tasks')}
-									/>
-								</div>
-							{/if}
-
 							<div class=" flex justify-between mt-0.5 mb-2.5 mx-0.5 max-w-full" dir="ltr">
 								<div class="ml-1 self-end flex items-center flex-1 max-w-[80%]">
 									<InputMenu
 										bind:files
-										{hermesMode}
 										selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 										{fileUploadCapableModels}
 										{screenCaptureHandler}
@@ -1747,18 +1616,9 @@
 									>
 										<div
 											id="input-menu-button"
-											class={`bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 outline-hidden focus:outline-hidden touch-manipulation min-h-10 min-w-10 focus-within:outline-none focus-within:ring-2 focus-within:ring-gray-300/70 focus-within:ring-offset-2 focus-within:ring-offset-white dark:focus-within:ring-gray-600/60 dark:focus-within:ring-offset-gray-950 ${
-												hermesMode
-													? 'inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-2.5 dark:border-gray-800 xl:px-3'
-													: 'size-8 rounded-full flex justify-center items-center'
-											}`}
+											class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center outline-hidden focus:outline-hidden"
 										>
 											<PlusAlt className="size-5.5" />
-											{#if hermesMode}
-												<span class="hidden text-[13px] font-medium xl:inline">
-													{$i18n.t('Attach')}
-												</span>
-											{/if}
 										</div>
 									</InputMenu>
 
@@ -1768,7 +1628,6 @@
 										/>
 
 										<IntegrationsMenu
-											{hermesMode}
 											selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 											{toggleFilters}
 											{showWebSearchButton}
@@ -1796,36 +1655,20 @@
 										>
 											<div
 												id="integration-menu-button"
-												class={`bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 outline-hidden focus:outline-hidden touch-manipulation min-h-10 min-w-10 focus-within:outline-none focus-within:ring-2 focus-within:ring-gray-300/70 focus-within:ring-offset-2 focus-within:ring-offset-white dark:focus-within:ring-gray-600/60 dark:focus-within:ring-offset-gray-950 ${
-													hermesMode
-														? 'inline-flex h-8 items-center gap-1.5 rounded-full border border-gray-200 px-2.5 dark:border-gray-800 xl:px-3'
-														: 'size-8 rounded-full flex justify-center items-center'
-												}`}
+												class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center outline-hidden focus:outline-hidden"
 											>
 												<Component className="size-4.5" strokeWidth="1.5" />
-												{#if hermesMode}
-													<span class="hidden text-[13px] font-medium xl:inline">
-														{$i18n.t('Capabilities')}
-													</span>
-													{#if hermesCapabilityStateCount > 0}
-														<span
-															class="ml-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-														>
-															{hermesCapabilityStateCount}
-														</span>
-													{/if}
-												{/if}
 											</div>
 										</IntegrationsMenu>
 									{/if}
 
-									{#if !hermesMode && selectedModelIds.length === 1 && $models.find((m) => m.id === selectedModelIds[0])?.has_user_valves}
+									{#if selectedModelIds.length === 1 && $models.find((m) => m.id === selectedModelIds[0])?.has_user_valves}
 										<div class="ml-1 flex gap-1.5">
 											<Tooltip content={$i18n.t('Valves')} placement="top">
 												<button
 													type="button"
 													id="model-valves-button"
-													class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 min-h-10 min-w-10 flex justify-center items-center outline-hidden focus:outline-hidden touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950"
+													class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center outline-hidden focus:outline-hidden"
 													on:click={() => {
 														selectedValvesType = 'function';
 														selectedValvesItemId = selectedModelIds[0]?.split('.')[0];
@@ -1838,154 +1681,150 @@
 										</div>
 									{/if}
 
-									{#if !hermesMode}
-										<div class="ml-1 flex gap-1.5">
-											{#if (selectedToolIds ?? []).length > 0}
-												<Tooltip
-													content={$i18n.t('{{COUNT}} Available Tools', {
-														COUNT: (selectedToolIds ?? []).length
-													})}
+									<div class="ml-1 flex gap-1.5">
+										{#if (selectedToolIds ?? []).length > 0}
+											<Tooltip
+												content={$i18n.t('{{COUNT}} Available Tools', {
+													COUNT: (selectedToolIds ?? []).length
+												})}
+											>
+												<button
+													class="translate-y-[0.5px] px-1 flex gap-1 items-center text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg self-center transition"
+													aria-label="Available Tools"
+													type="button"
+													on:click={() => {
+														showTools = !showTools;
+													}}
 												>
-													<button
-														class="translate-y-[0.5px] px-2 py-2 min-h-10 min-w-10 flex gap-1 items-center justify-center text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg self-center transition touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950"
-														aria-label="Available Tools"
-														type="button"
-														on:click={() => {
-															showTools = !showTools;
-														}}
-													>
-														<Wrench className="size-4" strokeWidth="1.75" />
+													<Wrench className="size-4" strokeWidth="1.75" />
 
-														<span class="text-sm">
-															{(selectedToolIds ?? []).length}
-														</span>
-													</button>
-												</Tooltip>
-											{/if}
+													<span class="text-sm">
+														{(selectedToolIds ?? []).length}
+													</span>
+												</button>
+											</Tooltip>
+										{/if}
 
-											{#each selectedFilterIds as filterId (filterId)}
-												{@const filter = toggleFilters.find((f) => f.id === filterId)}
-												{#if filter}
-													<Tooltip content={filter?.name} placement="top">
-														<button
-															on:click|preventDefault={() => {
-																selectedFilterIds = selectedFilterIds.filter(
-																	(id) => id !== filterId
-																);
-															}}
-															type="button"
-															class="group p-[7px] min-h-10 min-w-10 flex gap-1.5 items-center justify-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 max-w-full overflow-hidden touch-manipulation {selectedFilterIds.includes(
-																filterId
-															)
-																? 'text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
-																: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} capitalize"
-														>
-															{#if filter?.icon}
-																<div class="size-4 items-center flex justify-center">
-																	<img
-																		src={filter.icon}
-																		class="size-3.5 {filter.icon.includes('data:image/svg')
-																			? 'dark:invert-[80%]'
-																			: ''}"
-																		style="fill: currentColor;"
-																		alt={filter.name}
-																	/>
-																</div>
-															{:else}
-																<Sparkles className="size-4" strokeWidth="1.75" />
-															{/if}
-															<div class="hidden group-hover:block">
-																<XMark className="size-4" strokeWidth="1.75" />
-															</div>
-														</button>
-													</Tooltip>
-												{/if}
-											{/each}
-
-											{#if webSearchEnabled}
-												<Tooltip content={$i18n.t('Web Search')} placement="top">
-													<button
-														on:click|preventDefault={() => (webSearchEnabled = !webSearchEnabled)}
-														type="button"
-														class="group p-[7px] min-h-10 min-w-10 flex gap-1.5 items-center justify-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 max-w-full overflow-hidden touch-manipulation {webSearchEnabled ||
-														($settings?.webSearch ?? false) === 'always'
-															? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
-															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
-													>
-														<GlobeAlt className="size-4" strokeWidth="1.75" />
-														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
-														</div>
-													</button>
-												</Tooltip>
-											{/if}
-
-											{#if imageGenerationEnabled}
-												<Tooltip content={$i18n.t('Image')} placement="top">
-													<button
-														on:click|preventDefault={() =>
-															(imageGenerationEnabled = !imageGenerationEnabled)}
-														type="button"
-														class="group p-[7px] min-h-10 min-w-10 flex gap-1.5 items-center justify-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 max-w-full overflow-hidden touch-manipulation {imageGenerationEnabled
-															? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
-															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
-													>
-														<Photo className="size-4" strokeWidth="1.75" />
-														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
-														</div>
-													</button>
-												</Tooltip>
-											{/if}
-
-											{#if codeInterpreterEnabled}
-												<Tooltip content={$i18n.t('Code Interpreter')} placement="top">
-													<button
-														aria-label={codeInterpreterEnabled
-															? $i18n.t('Disable Code Interpreter')
-															: $i18n.t('Enable Code Interpreter')}
-														aria-pressed={codeInterpreterEnabled}
-														on:click|preventDefault={() =>
-															(codeInterpreterEnabled = !codeInterpreterEnabled)}
-														type="button"
-														class=" group p-[7px] min-h-10 min-w-10 flex gap-1.5 items-center justify-center text-sm transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 max-w-full overflow-hidden touch-manipulation {codeInterpreterEnabled
-															? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
-															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} {($settings?.highContrastMode ??
-														false)
-															? 'm-1'
-															: 'focus:outline-hidden rounded-full'}"
-													>
-														<Terminal className="size-3.5" strokeWidth="2" />
-
-														<div class="hidden group-hover:block">
-															<XMark className="size-4" strokeWidth="1.75" />
-														</div>
-													</button>
-												</Tooltip>
-											{/if}
-
-											{#each pendingOAuthTools as pendingTool (pendingTool.id)}
-												<Tooltip content={$i18n.t('Click to connect')} placement="top">
+										{#each selectedFilterIds as filterId (filterId)}
+											{@const filter = toggleFilters.find((f) => f.id === filterId)}
+											{#if filter}
+												<Tooltip content={filter?.name} placement="top">
 													<button
 														on:click|preventDefault={() => {
-															sessionStorage.setItem('pendingOAuthToolId', pendingTool.id);
-															const authUrl = getOAuthClientAuthorizationUrl(
-																pendingTool.serverId,
-																pendingTool.authType ?? 'mcp'
-															);
-															window.open(authUrl, '_self', 'noopener');
+															selectedFilterIds = selectedFilterIds.filter((id) => id !== filterId);
 														}}
 														type="button"
-														class="group px-2 py-[5px] min-h-10 min-w-10 flex gap-1.5 items-center justify-center text-xs rounded-full transition-colors duration-300 focus:outline-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 max-w-full overflow-hidden touch-manipulation
-															text-amber-600 dark:text-amber-400 bg-amber-50 hover:bg-amber-100 dark:bg-amber-400/10 dark:hover:bg-amber-600/10 border border-amber-200/40 dark:border-amber-500/20"
+														class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {selectedFilterIds.includes(
+															filterId
+														)
+															? 'text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
+															: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} capitalize"
 													>
-														<Wrench className="size-3.5" strokeWidth="1.75" />
-														<span class="truncate">{pendingTool.name}</span>
+														{#if filter?.icon}
+															<div class="size-4 items-center flex justify-center">
+																<img
+																	src={filter.icon}
+																	class="size-3.5 {filter.icon.includes('data:image/svg')
+																		? 'dark:invert-[80%]'
+																		: ''}"
+																	style="fill: currentColor;"
+																	alt={filter.name}
+																/>
+															</div>
+														{:else}
+															<Sparkles className="size-4" strokeWidth="1.75" />
+														{/if}
+														<div class="hidden group-hover:block">
+															<XMark className="size-4" strokeWidth="1.75" />
+														</div>
 													</button>
 												</Tooltip>
-											{/each}
-										</div>
-									{/if}
+											{/if}
+										{/each}
+
+										{#if webSearchEnabled}
+											<Tooltip content={$i18n.t('Web Search')} placement="top">
+												<button
+													on:click|preventDefault={() => (webSearchEnabled = !webSearchEnabled)}
+													type="button"
+													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {webSearchEnabled ||
+													($settings?.webSearch ?? false) === 'always'
+														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-600/10 border border-sky-200/40 dark:border-sky-500/20'
+														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
+												>
+													<GlobeAlt className="size-4" strokeWidth="1.75" />
+													<div class="hidden group-hover:block">
+														<XMark className="size-4" strokeWidth="1.75" />
+													</div>
+												</button>
+											</Tooltip>
+										{/if}
+
+										{#if imageGenerationEnabled}
+											<Tooltip content={$i18n.t('Image')} placement="top">
+												<button
+													on:click|preventDefault={() =>
+														(imageGenerationEnabled = !imageGenerationEnabled)}
+													type="button"
+													class="group p-[7px] flex gap-1.5 items-center text-sm rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden {imageGenerationEnabled
+														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '}"
+												>
+													<Photo className="size-4" strokeWidth="1.75" />
+													<div class="hidden group-hover:block">
+														<XMark className="size-4" strokeWidth="1.75" />
+													</div>
+												</button>
+											</Tooltip>
+										{/if}
+
+										{#if codeInterpreterEnabled}
+											<Tooltip content={$i18n.t('Code Interpreter')} placement="top">
+												<button
+													aria-label={codeInterpreterEnabled
+														? $i18n.t('Disable Code Interpreter')
+														: $i18n.t('Enable Code Interpreter')}
+													aria-pressed={codeInterpreterEnabled}
+													on:click|preventDefault={() =>
+														(codeInterpreterEnabled = !codeInterpreterEnabled)}
+													type="button"
+													class=" group p-[7px] flex gap-1.5 items-center text-sm transition-colors duration-300 max-w-full overflow-hidden {codeInterpreterEnabled
+														? ' text-sky-500 dark:text-sky-300 bg-sky-50 hover:bg-sky-100 dark:bg-sky-400/10 dark:hover:bg-sky-700/10 border border-sky-200/40 dark:border-sky-500/20'
+														: 'bg-transparent text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 '} {($settings?.highContrastMode ??
+													false)
+														? 'm-1'
+														: 'focus:outline-hidden rounded-full'}"
+												>
+													<Terminal className="size-3.5" strokeWidth="2" />
+
+													<div class="hidden group-hover:block">
+														<XMark className="size-4" strokeWidth="1.75" />
+													</div>
+												</button>
+											</Tooltip>
+										{/if}
+
+										{#each pendingOAuthTools as pendingTool (pendingTool.id)}
+											<Tooltip content={$i18n.t('Click to connect')} placement="top">
+												<button
+													on:click|preventDefault={() => {
+														sessionStorage.setItem('pendingOAuthToolId', pendingTool.id);
+														const authUrl = getOAuthClientAuthorizationUrl(
+															pendingTool.serverId,
+															pendingTool.authType ?? 'mcp'
+														);
+														window.open(authUrl, '_self', 'noopener');
+													}}
+													type="button"
+													class="group px-2 py-[5px] flex gap-1.5 items-center text-xs rounded-full transition-colors duration-300 focus:outline-hidden max-w-full overflow-hidden
+														text-amber-600 dark:text-amber-400 bg-amber-50 hover:bg-amber-100 dark:bg-amber-400/10 dark:hover:bg-amber-600/10 border border-amber-200/40 dark:border-amber-500/20"
+												>
+													<Wrench className="size-3.5" strokeWidth="1.75" />
+													<span class="truncate">{pendingTool.name}</span>
+												</button>
+											</Tooltip>
+										{/each}
+									</div>
 								</div>
 
 								<div class="self-end flex space-x-1 mr-1 shrink-0 gap-[0.5px]">
@@ -1993,9 +1832,7 @@
 										<div class=" flex items-center">
 											<Tooltip content={$i18n.t('Stop')}>
 												<button
-													class={`bg-white hover:bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-800 transition rounded-full min-h-10 min-w-10 touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950 ${
-														hermesMode ? 'inline-flex items-center gap-1.5 px-3 py-1.5' : 'p-1.5'
-													}`}
+													class="bg-white hover:bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-800 transition rounded-full p-1.5"
 													on:click={() => {
 														stopResponse();
 													}}
@@ -2004,7 +1841,7 @@
 														xmlns="http://www.w3.org/2000/svg"
 														viewBox="0 0 24 24"
 														fill="currentColor"
-														class={hermesMode ? 'size-4.5' : 'size-5'}
+														class="size-5"
 													>
 														<path
 															fill-rule="evenodd"
@@ -2012,21 +1849,16 @@
 															clip-rule="evenodd"
 														/>
 													</svg>
-													{#if hermesMode}
-														<span class="hidden text-[13px] font-medium xl:inline">
-															{$i18n.t('Stop')}
-														</span>
-													{/if}
 												</button>
 											</Tooltip>
 										</div>
 									{:else}
-										{#if !hermesMode && canCreateNote}
+										{#if prompt !== '' && !history?.currentId && !$selectedTerminalId && ($config?.features?.enable_notes ?? false) && ($_user?.role === 'admin' || ($_user?.permissions?.features?.notes ?? true))}
 											<!-- {$i18n.t('Create Note')}  -->
 											<Tooltip content={$i18n.t('Create note')} className=" flex items-center">
 												<button
 													id="create-note-button"
-													class=" text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-2 min-h-10 min-w-10 -mr-1 self-center inline-flex items-center justify-center touch-manipulation focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-300/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-gray-600/60 dark:focus-visible:ring-offset-gray-950"
+													class=" text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 -mr-1 self-center"
 													type="button"
 													disabled={prompt === '' && files.length === 0}
 													on:click={() => {
@@ -2040,32 +1872,43 @@
 
 										{#if !history?.currentId || history.messages[history.currentId]?.done == true}
 											<!-- Terminal Server Selector -->
-											{#if !hermesMode && hasTerminalAccess}
-												<TerminalMenu bind:show={showTerminalMenu} />
-											{:else if hermesMode && showTerminalMenu}
+											{#if ($terminalServers ?? []).length > 0 || ($settings?.terminalServers ?? []).some((s) => s.url)}
 												<TerminalMenu bind:show={showTerminalMenu} />
 											{/if}
 
-											{#if hermesMode}
-												{#if !showTerminalMenu}
-													<HermesComposerOverflowMenu
-														showDictate={canDictate}
-														showNote={canCreateNote}
-														showTerminal={hasTerminalAccess}
-														terminalLabel={selectedHermesTerminalLabel}
-														on:dictate={startDictation}
-														on:note={createNote}
-														on:terminal={openTerminalSelector}
-													/>
-												{/if}
-											{:else if canDictate}
+											{#if $_user?.role === 'admin' || ($_user?.permissions?.chat?.stt ?? true)}
 												<!-- {$i18n.t('Record voice')} -->
 												<Tooltip content={$i18n.t('Dictate')}>
 													<button
 														id="voice-input-button"
 														class=" text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5 self-center mr-0.5"
 														type="button"
-														on:click={startDictation}
+														on:click={async () => {
+															try {
+																let stream = await navigator.mediaDevices
+																	.getUserMedia({ audio: true })
+																	.catch(function (err) {
+																		toast.error(
+																			$i18n.t(
+																				`Permission denied when accessing microphone: {{error}}`,
+																				{
+																					error: err
+																				}
+																			)
+																		);
+																		return null;
+																	});
+
+																if (stream) {
+																	recording = true;
+																	const tracks = stream.getTracks();
+																	tracks.forEach((track) => track.stop());
+																}
+																stream = null;
+															} catch {
+																toast.error($i18n.t('Permission denied when accessing microphone'));
+															}
+														}}
 														aria-label="Voice Input"
 													>
 														<svg
@@ -2084,7 +1927,7 @@
 											{/if}
 										{/if}
 
-										{#if !hermesMode && prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
+										{#if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 											<div class=" flex items-center">
 												<!-- {$i18n.t('Call')} -->
 												<Tooltip content={$i18n.t('Voice mode')}>
@@ -2158,20 +2001,18 @@
 														id="send-message-button"
 														class="{!(prompt === '' && files.length === 0) || uploadPending
 															? 'bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 '
-															: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full self-center {hermesMode
-															? 'inline-flex items-center gap-1.5 px-3 py-1.5'
-															: 'p-1.5'}"
+															: 'text-white bg-gray-200 dark:text-gray-900 dark:bg-gray-700 disabled'} transition rounded-full p-1.5 self-center"
 														type="submit"
 														disabled={(prompt === '' && files.length === 0) || uploadPending}
 													>
 														{#if uploadPending}
-															<Spinner className={hermesMode ? 'size-4.5' : 'size-5'} />
+															<Spinner className="size-5" />
 														{:else}
 															<svg
 																xmlns="http://www.w3.org/2000/svg"
 																viewBox="0 0 16 16"
 																fill="currentColor"
-																class={hermesMode ? 'size-4.5' : 'size-5'}
+																class="size-5"
 															>
 																<path
 																	fill-rule="evenodd"
@@ -2179,11 +2020,6 @@
 																	clip-rule="evenodd"
 																/>
 															</svg>
-														{/if}
-														{#if hermesMode}
-															<span class="hidden text-[13px] font-medium xl:inline">
-																{$i18n.t('Send')}
-															</span>
 														{/if}
 													</button>
 												</Tooltip>

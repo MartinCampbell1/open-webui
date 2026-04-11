@@ -11,11 +11,8 @@
 	import MultiResponseMessages from './MultiResponseMessages.svelte';
 	import ResponseMessage from './ResponseMessage.svelte';
 	import UserMessage from './UserMessage.svelte';
-	import HermesImportedToolMessage from '$lib/components/hermes/transcript/HermesImportedToolMessage.svelte';
-	import { isHermesImportedToolMessage } from '$lib/utils/hermesTranscript';
 
 	export let chatId;
-	export let chatHermesSession: Record<string, any> | null = null;
 	export let selectedModels = [];
 	export let idx = 0;
 
@@ -42,7 +39,6 @@
 	export let mergeResponses;
 
 	export let addMessages;
-	export let respondToApproval;
 	export let triggerScroll;
 	export let readOnly = false;
 	export let editCodeBlock = true;
@@ -77,13 +73,10 @@
 				{editCodeBlock}
 				{topPadding}
 			/>
-		{:else if isHermesImportedToolMessage(history.messages[messageId])}
-			<HermesImportedToolMessage {history} {messageId} />
 		{:else if (history.messages[history.messages[messageId].parentId]?.models?.length ?? 1) === 1}
 			<ResponseMessage
 				{chatId}
 				{history}
-				{chatHermesSession}
 				{messageId}
 				{selectedModels}
 				isLastMessage={messageId === history.currentId}
@@ -102,7 +95,6 @@
 				{continueResponse}
 				{regenerateResponse}
 				{addMessages}
-				{respondToApproval}
 				{readOnly}
 				{editCodeBlock}
 				{topPadding}
@@ -112,7 +104,6 @@
 				<MultiResponseMessages
 					bind:history
 					{chatId}
-					{chatHermesSession}
 					{messageId}
 					{selectedModels}
 					isLastMessage={messageId === history?.currentId}
@@ -129,7 +120,6 @@
 					{mergeResponses}
 					{triggerScroll}
 					{addMessages}
-					{respondToApproval}
 					{readOnly}
 					{editCodeBlock}
 					{topPadding}

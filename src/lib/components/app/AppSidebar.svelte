@@ -4,17 +4,6 @@
 	import { WEBUI_BASE_URL } from '$lib/constants';
 
 	let selected = '';
-
-	const handleSidebarLogoError = (event: Event) => {
-		const image = event.currentTarget as HTMLImageElement | null;
-
-		if (!image || image.dataset.fallbackLoaded === 'true') {
-			return;
-		}
-
-		image.dataset.fallbackLoaded = 'true';
-		image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
-	};
 </script>
 
 <nav
@@ -41,11 +30,10 @@
 				}}
 			>
 				<img
-					src="/static/splash.png"
+					src="{WEBUI_BASE_URL}/static/splash.png"
 					class="size-11 dark:invert p-0.5"
 					alt="logo"
 					draggable="false"
-					on:error={handleSidebarLogoError}
 				/>
 			</button>
 		</Tooltip>
@@ -67,11 +55,10 @@
 			}}
 		>
 			<img
-				src="/favicon.png"
+				src="{WEBUI_BASE_URL}/static/favicon.png"
 				class="size-10 {selected === '' ? 'rounded-2xl' : 'rounded-full'}"
 				alt="logo"
 				draggable="false"
-				on:error={handleSidebarLogoError}
 			/>
 		</button>
 	</div>

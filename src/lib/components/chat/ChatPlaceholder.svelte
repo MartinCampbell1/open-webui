@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { HERMES_COMMUNITY_URL, WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
+	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 	import { marked } from 'marked';
 
 	import { config, user, models as _models, temporaryChatEnabled } from '$lib/stores';
@@ -107,7 +107,8 @@
 								By
 								{#if models[selectedModelIdx]?.info?.meta?.user.community}
 									<a
-										href={HERMES_COMMUNITY_URL}
+										href="https://openwebui.com/m/{models[selectedModelIdx]?.info?.meta?.user
+											.username}"
 										>{models[selectedModelIdx]?.info?.meta?.user.name
 											? models[selectedModelIdx]?.info?.meta?.user.name
 											: `@${models[selectedModelIdx]?.info?.meta?.user.username}`}</a

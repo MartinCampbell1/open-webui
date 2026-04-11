@@ -1,18 +1,13 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
-
-	import { chatControlsOpenTarget, showControls } from '$lib/stores';
 	import CodeExecutionModal from './CodeExecutionModal.svelte';
-	import HermesToolActivityRow from '$lib/components/hermes/transcript/HermesToolActivityRow.svelte';
-	import { getHermesToolExecutionSurfaceSummary } from '$lib/utils/hermesTranscript';
-	import { getValidHermesGeneratedFiles } from '$lib/utils/hermesWorkspace';
+	import Spinner from '$lib/components/common/Spinner.svelte';
+	import Check from '$lib/components/icons/Check.svelte';
+	import XMark from '$lib/components/icons/XMark.svelte';
+	import EllipsisHorizontal from '$lib/components/icons/EllipsisHorizontal.svelte';
 
-	const i18n = getContext<any>('i18n');
+	export let codeExecutions = [];
 
-	export let codeExecutions: any[] = [];
-	export let compact = false;
-
-	let selectedCodeExecution: any = null;
+	let selectedCodeExecution = null;
 	let showCodeExecutionModal = false;
 
 	$: if (codeExecutions) {
@@ -21,67 +16,65 @@
 
 	const updateSelectedCodeExecution = () => {
 		if (selectedCodeExecution) {
-			selectedCodeExecution =
-				codeExecutions.find((execution) => execution.id === selectedCodeExecution?.id) ?? null;
+			selectedCodeExecution = codeExecutions.find(
+				(execution) => execution.id === selectedCodeExecution.id
+			);
 		}
-	};
-
-	const getExecutionState = (execution: any) => {
-		if (!execution?.result) {
-			return 'running';
-		}
-
-		if (execution.result?.error) {
-			return 'failed';
-		}
-
-		return 'done';
-	};
-
-	const getExecutionScopeLabel = (execution: any) =>
-		getGeneratedFileCount(execution) > 0
-			? `${$i18n.t('Generated in this chat')} (${getGeneratedFileCount(execution)})`
-			: '';
-
-	const getGeneratedFiles = (execution: any) =>
-		getValidHermesGeneratedFiles(execution?.result?.files);
-
-	const getGeneratedFileCount = (execution: any) => getGeneratedFiles(execution).length;
-
-	const openWorkspace = () => {
-		chatControlsOpenTarget.set('workspace');
-		showControls.set(true);
 	};
 </script>
 
-<CodeExecutionModal
-	bind:show={showCodeExecutionModal}
-	codeExecution={selectedCodeExecution as any}
-/>
+<CodeExecutionModal bind:show={showCodeExecutionModal} codeExecution={selectedCodeExecution} />
 
 {#if codeExecutions.length > 0}
-	<div class="w-full flex flex-col gap-1 {compact ? '' : 'mt-1 mb-2'}">
+	<div class="mt-1 mb-2 w-full flex gap-1 items-center flex-wrap">
 		{#each codeExecutions as execution (execution.id)}
-			{@const executionSummary = getHermesToolExecutionSurfaceSummary(
-				execution,
-				$i18n.t('Completed')
-			)}
-			<HermesToolActivityRow
-				name={execution.name}
-				summary={executionSummary.summary}
-				meta={executionSummary.meta}
-				scopeLabel={getExecutionScopeLabel(execution)}
-				state={getExecutionState(execution)}
-				actionLabel={getGeneratedFileCount(execution) > 0 ? $i18n.t('Open in workspace') : ''}
-				actionAriaLabel={getGeneratedFileCount(execution) > 0
-					? $i18n.t('Open generated files in workspace')
-					: ''}
-				onClick={() => {
-					selectedCodeExecution = execution;
-					showCodeExecutionModal = true;
-				}}
-				onActionClick={openWorkspace}
-			/>
+			<div class="flex gap-1 text-xs font-semibold">
+				<button
+					class="flex dark:text-gray-300 py-1 px-1 bg-gray-50 hover:bg-gray-100 dark:bg-gray-850 dark:hover:bg-gray-800 transition rounded-xl max-w-96"
+					on:click={() => {
+						selectedCodeExecution = execution;
+						showCodeExecutionModal = true;
+					}}
+				>
+					<div
+						class="bg-white dark:bg-gray-700 rounded-full size-4 flex items-center justify-center"
+					>
+						{#if execution?.result}
+							{#if execution.result?.error}
+								<XMark />
+							{:else if execution.result?.output}
+								<Check strokeWidth="3" className="size-3" />
+							{:else}
+								<EllipsisHorizontal />
+							{/if}
+						{:else}
+							<Spinner className="size-4" />
+						{/if}
+					</div>
+					<div
+						class="flex-1 mx-2 line-clamp-1 code-execution-name {execution?.result ? '' : 'pulse'}"
+					>
+						{execution.name}
+					</div>
+				</button>
+			</div>
 		{/each}
 	</div>
 {/if}
+
+<style>
+	@keyframes pulse {
+		0%,
+		100% {
+			opacity: 1;
+		}
+		50% {
+			opacity: 0.6;
+		}
+	}
+
+	.pulse {
+		opacity: 1;
+		animation: pulse 1.5s ease;
+	}
+</style>

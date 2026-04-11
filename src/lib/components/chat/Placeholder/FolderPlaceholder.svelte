@@ -1,14 +1,15 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { getContext, onMount } from 'svelte';
 	import type { Writable } from 'svelte/store';
 
 	const i18n: Writable<any> = getContext('i18n');
+
+	import { fade } from 'svelte/transition';
 
 	import ChatList from './ChatList.svelte';
 	import FolderKnowledge from './FolderKnowledge.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { getChatListByFolderId } from '$lib/apis/chats';
-	import { refreshHermesSessionStores } from '$lib/utils/hermesSessions';
 
 	export let folder: any = null;
 
@@ -48,10 +49,6 @@
 		chatListLoading = false;
 
 		if (folder && folder.id) {
-			await refreshHermesSessionStores(localStorage.token).catch((error) => {
-				console.debug('Failed to refresh Hermes sessions for folder chats:', error);
-			});
-
 			const res = await getChatListByFolderId(localStorage.token, folder.id, page);
 
 			if (res) {
@@ -102,12 +99,6 @@
 		{#if selectedTab === 'knowledge'}
 			<FolderKnowledge />
 		{:else if selectedTab === 'chats'}
-			{#if folder?.id}
-				<div class="px-1 pb-2 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
-					{$i18n.t('Chats in this folder stay linked to Hermes sessions.')}
-				</div>
-			{/if}
-
 			{#if chats !== null}
 				<ChatList {chats} {chatListLoading} {allChatsLoaded} loadHandler={loadChats} />
 			{:else}

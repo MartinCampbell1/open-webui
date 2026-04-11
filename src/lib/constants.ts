@@ -1,14 +1,7 @@
 import { browser, dev } from '$app/environment';
 // import { version } from '../../package.json';
 
-export const APP_NAME = 'Hermes';
-export const HERMES_REPO_URL = 'https://github.com/MartinCampbell1/hermes-ui-audit-pack';
-export const HERMES_DOCS_URL = `${HERMES_REPO_URL}#readme`;
-export const HERMES_RELEASES_URL = `${HERMES_REPO_URL}/releases`;
-export const HERMES_SUPPORT_URL = `${HERMES_REPO_URL}/issues`;
-export const HERMES_COMMUNITY_URL = HERMES_REPO_URL;
-export const HERMES_PUBLIC_LIBRARY_URL = HERMES_REPO_URL;
-export const HERMES_ALLOWED_MESSAGE_ORIGINS = ['https://github.com', 'http://localhost:9999'];
+export const APP_NAME = 'Open WebUI';
 
 export const WEBUI_HOSTNAME = browser ? (dev ? `${location.hostname}:8080` : ``) : '';
 export const WEBUI_BASE_URL = browser ? (dev ? `http://${WEBUI_HOSTNAME}` : ``) : ``;

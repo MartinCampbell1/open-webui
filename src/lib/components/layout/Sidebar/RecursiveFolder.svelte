@@ -682,9 +682,6 @@
 							id={chat.id}
 							title={chat.title}
 							createdAt={chat.created_at}
-							updatedAt={chat.updated_at}
-							meta={chat.meta}
-							sessionSummary={chat.session_summary}
 							{shiftKey}
 							on:change={(e) => {
 								dispatch('change', e.detail);

@@ -3,7 +3,6 @@
 	import { spring } from 'svelte/motion';
 	import PyodideWorker from '$lib/workers/pyodide.worker?worker';
 	import { Toaster, toast } from 'svelte-sonner';
-	import { HERMES_ALLOWED_MESSAGE_ORIGINS } from '$lib/constants';
 
 	let loadingProgress = spring(0, {
 		stiffness: 0.05
@@ -455,7 +454,7 @@
 
 					if ($isLastActiveTab) {
 						if ($settings?.notificationEnabled ?? false) {
-							new Notification(`${displayTitle} • ${$WEBUI_NAME}`, {
+							new Notification(`${displayTitle} • Open WebUI`, {
 								body: content,
 								icon: `${WEBUI_BASE_URL}/static/favicon.png`
 							});
@@ -658,7 +657,7 @@
 
 				if ($isLastActiveTab) {
 					if ($settings?.notificationEnabled ?? false) {
-						new Notification(`${title} • ${$WEBUI_NAME}`, {
+						new Notification(`${title} • Open WebUI`, {
 							body: data?.content,
 							icon: `${WEBUI_API_BASE_URL}/users/${data?.user?.id}/profile/image`
 						});
@@ -757,7 +756,11 @@
 	};
 
 	const windowMessageEventHandler = async (event) => {
-		if (!HERMES_ALLOWED_MESSAGE_ORIGINS.includes(event.origin)) {
+		if (
+			!['https://openwebui.com', 'https://www.openwebui.com', 'http://localhost:9999'].includes(
+				event.origin
+			)
+		) {
 			return;
 		}
 

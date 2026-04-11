@@ -9,26 +9,14 @@ import uvicorn
 
 app = typer.Typer()
 
-KEY_FILE = Path(__file__).resolve().parents[1] / '.webui_secret_key'
-
-
-def ensure_runtime_env() -> None:
-    os.environ['FROM_INIT_PY'] = 'true'
-
-    if os.getenv('WEBUI_SECRET_KEY') is None:
-        typer.echo('Loading WEBUI_SECRET_KEY from file, not provided as an environment variable.')
-        if not KEY_FILE.exists():
-            typer.echo(f'Generating a new secret key and saving it to {KEY_FILE}')
-            KEY_FILE.write_bytes(base64.b64encode(random.randbytes(12)))
-        typer.echo(f'Loading WEBUI_SECRET_KEY from {KEY_FILE}')
-        os.environ['WEBUI_SECRET_KEY'] = KEY_FILE.read_text()
+KEY_FILE = Path.cwd() / '.webui_secret_key'
 
 
 def version_callback(value: bool) -> None:
     if value:
         from open_webui.env import VERSION
 
-        typer.echo(f'Hermes version: {VERSION}')
+        typer.echo(f'Open WebUI version: {VERSION}')
         raise typer.Exit()
 
 
@@ -44,7 +32,14 @@ def serve(
     host: str = '0.0.0.0',
     port: int = 8080,
 ):
-    ensure_runtime_env()
+    os.environ['FROM_INIT_PY'] = 'true'
+    if os.getenv('WEBUI_SECRET_KEY') is None:
+        typer.echo('Loading WEBUI_SECRET_KEY from file, not provided as an environment variable.')
+        if not KEY_FILE.exists():
+            typer.echo(f'Generating a new secret key and saving it to {KEY_FILE}')
+            KEY_FILE.write_bytes(base64.b64encode(random.randbytes(12)))
+        typer.echo(f'Loading WEBUI_SECRET_KEY from {KEY_FILE}')
+        os.environ['WEBUI_SECRET_KEY'] = KEY_FILE.read_text()
 
     if os.getenv('USE_CUDA_DOCKER', 'false') == 'true':
         typer.echo('CUDA is enabled, appending LD_LIBRARY_PATH to include torch/cudnn & cublas libraries.')
@@ -88,7 +83,6 @@ def dev(
     port: int = 8080,
     reload: bool = True,
 ):
-    ensure_runtime_env()
     uvicorn.run(
         'open_webui.main:app',
         host=host,

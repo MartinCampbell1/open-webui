@@ -10,7 +10,6 @@
 	import Pencil from '$lib/components/icons/Pencil.svelte';
 	import { config, settings, user } from '$lib/stores';
 	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
-	import { HERMES_COMMUNITY_URL } from '$lib/constants';
 
 	const i18n = getContext('i18n');
 
@@ -123,7 +122,10 @@
 						e.stopPropagation();
 						e.preventDefault();
 
-						window.open(HERMES_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
+						window.open(
+							`https://openwebui.com/models?q=${encodeURIComponent(model?.id ?? '')}`,
+							'_blank'
+						);
 						show = false;
 					}}
 				>

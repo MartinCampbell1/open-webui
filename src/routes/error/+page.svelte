@@ -1,6 +1,5 @@
 <script>
 	import { goto } from '$app/navigation';
-	import { HERMES_DOCS_URL, HERMES_SUPPORT_URL } from '$lib/constants';
 	import { WEBUI_NAME, config } from '$lib/stores';
 	import { onMount, getContext } from 'svelte';
 
@@ -35,11 +34,11 @@
 						<br class=" " />
 						<a
 							class=" font-medium underline"
-							href={HERMES_DOCS_URL}
+							href="https://github.com/open-webui/open-webui#how-to-install-"
 							target="_blank">{$i18n.t('See readme.md for instructions')}</a
 						>
 						{$i18n.t('or')}
-						<a class=" font-medium underline" href={HERMES_SUPPORT_URL} target="_blank"
+						<a class=" font-medium underline" href="https://discord.gg/5rJgQTnV4s" target="_blank"
 							>{$i18n.t('join our Discord for help.')}</a
 						>
 					</div>

@@ -22,14 +22,6 @@ from open_webui.models.chats import (
     ChatBody,
     ChatHistoryStats,
     MessageStats,
-    build_chat_list_meta,
-    build_chat_session_summary,
-)
-from open_webui.utils.hermes import (
-    get_hermes_sessions,
-    get_imported_hermes_chat_map,
-    load_hermes_session,
-    refresh_imported_hermes_chat,
 )
 from open_webui.models.tags import TagModel, Tags
 from open_webui.models.folders import Folders
@@ -47,87 +39,6 @@ from open_webui.utils.access_control import has_permission
 log = logging.getLogger(__name__)
 
 router = APIRouter()
-HERMES_CHAT_LIST_SYNC_LIMIT = 10
-
-
-def build_chat_response(chat) -> ChatResponse:
-    payload = chat.model_dump()
-    payload['meta'] = build_chat_list_meta(payload.get('meta'), payload.get('chat'))
-    return ChatResponse(**payload)
-
-
-def build_chat_title_id_payload(chat) -> dict:
-    if hasattr(chat, 'model_dump'):
-        payload = chat.model_dump()
-    elif isinstance(chat, dict):
-        payload = chat
-    else:
-        payload = {
-            'title': getattr(chat, 'title', None),
-            'id': getattr(chat, 'id', None),
-            'updated_at': getattr(chat, 'updated_at', None),
-            'created_at': getattr(chat, 'created_at', None),
-            'meta': getattr(chat, 'meta', None),
-            'chat': getattr(chat, 'chat', None),
-        }
-
-    chat_payload = payload.get('chat')
-    meta_payload = payload.get('meta')
-
-    return {
-        'title': payload.get('title'),
-        'id': payload.get('id'),
-        'updated_at': payload.get('updated_at'),
-        'created_at': payload.get('created_at'),
-        'meta': build_chat_list_meta(meta_payload, chat_payload),
-        'session_summary': build_chat_session_summary(chat_payload),
-    }
-
-
-def _refresh_stale_imported_hermes_chats_for_list(
-    db: Session,
-    user_id: str,
-    *,
-    limit: int = HERMES_CHAT_LIST_SYNC_LIMIT,
-) -> None:
-    try:
-        sessions_payload = get_hermes_sessions()
-        session_items = sessions_payload.get('items') if isinstance(sessions_payload, dict) else []
-        if not isinstance(session_items, list) or not session_items:
-            return
-
-        imported_chat_map = get_imported_hermes_chat_map(
-            db,
-            user_id,
-            [session.get('session_id') for session in session_items if session.get('session_id')],
-        )
-        if not imported_chat_map:
-            return
-
-        stale_sessions = [
-            session
-            for session in session_items
-            if (
-                session.get('session_id') in imported_chat_map
-                and not imported_chat_map[session['session_id']].get('archived')
-                and (session.get('updated_at') or 0)
-                > (imported_chat_map[session['session_id']].get('updated_at') or 0)
-            )
-        ]
-
-        for session in stale_sessions[: max(0, limit)]:
-            session_id = session.get('session_id')
-            imported_chat = imported_chat_map.get(session_id)
-            if not session_id or not imported_chat:
-                continue
-
-            session_payload = load_hermes_session(session_id, sessions_payload=sessions_payload)
-            if not session_payload:
-                continue
-
-            refresh_imported_hermes_chat(db, imported_chat['id'], user_id, session_payload)
-    except Exception as exc:
-        log.debug('Skipping Hermes pre-list sync: %s', exc)
 
 ############################
 # GetChatList
@@ -146,9 +57,6 @@ def get_session_user_chat_list(
     db: Session = Depends(get_session),
 ):
     try:
-        if page is None or page <= 1:
-            _refresh_stale_imported_hermes_chats_for_list(db, user.id)
-
         if page is not None:
             limit = 60
             skip = (page - 1) * limit
@@ -630,10 +538,7 @@ async def get_user_chat_list_by_user_id(
     if direction:
         filter['direction'] = direction
 
-    return [
-        build_chat_title_id_payload(chat)
-        for chat in Chats.get_chat_list_by_user_id(user_id, include_archived=True, filter=filter, skip=skip, limit=limit, db=db)
-    ]
+    return Chats.get_chat_list_by_user_id(user_id, include_archived=True, filter=filter, skip=skip, limit=limit, db=db)
 
 
 ############################
@@ -649,7 +554,7 @@ async def create_new_chat(
 ):
     try:
         chat = Chats.insert_new_chat(user.id, form_data, db=db)
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
     except Exception as e:
         log.exception(e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERROR_MESSAGES.DEFAULT())
@@ -668,7 +573,7 @@ async def import_chats(
 ):
     try:
         chats = Chats.import_chats(user.id, form_data.chats, db=db)
-        return [build_chat_response(chat) for chat in chats]
+        return chats
     except Exception as e:
         log.exception(e)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=ERROR_MESSAGES.DEFAULT())
@@ -693,7 +598,7 @@ def search_user_chats(
     skip = (page - 1) * limit
 
     chat_list = [
-        ChatTitleIdResponse(**build_chat_title_id_payload(chat))
+        ChatTitleIdResponse(**chat.model_dump())
         for chat in Chats.get_chats_by_user_id_and_search_text(user.id, text, skip=skip, limit=limit, db=db)
     ]
 
@@ -721,10 +626,13 @@ async def get_chats_by_folder_id(folder_id: str, user=Depends(get_verified_user)
     if children_folders:
         folder_ids.extend([folder.id for folder in children_folders])
 
-    return [build_chat_response(chat) for chat in Chats.get_chats_by_folder_ids_and_user_id(folder_ids, user.id, db=db)]
+    return [
+        ChatResponse(**chat.model_dump())
+        for chat in Chats.get_chats_by_folder_ids_and_user_id(folder_ids, user.id, db=db)
+    ]
 
 
-@router.get('/folder/{folder_id}/list', response_model=list[ChatTitleIdResponse])
+@router.get('/folder/{folder_id}/list')
 async def get_chat_list_by_folder_id(
     folder_id: str,
     page: Optional[int] = 1,
@@ -736,7 +644,7 @@ async def get_chat_list_by_folder_id(
         skip = (page - 1) * limit
 
         return [
-            build_chat_title_id_payload(chat)
+            {'title': chat.title, 'id': chat.id, 'updated_at': chat.updated_at}
             for chat in Chats.get_chats_by_folder_id_and_user_id(folder_id, user.id, skip=skip, limit=limit, db=db)
         ]
 
@@ -752,7 +660,6 @@ async def get_chat_list_by_folder_id(
 
 @router.get('/pinned', response_model=list[ChatTitleIdResponse])
 async def get_user_pinned_chats(user=Depends(get_verified_user), db: Session = Depends(get_session)):
-    _refresh_stale_imported_hermes_chats_for_list(db, user.id)
     return Chats.get_pinned_chats_by_user_id(user.id, db=db)
 
 
@@ -764,7 +671,7 @@ async def get_user_pinned_chats(user=Depends(get_verified_user), db: Session = D
 @router.get('/all', response_model=list[ChatResponse])
 async def get_user_chats(user=Depends(get_verified_user), db: Session = Depends(get_session)):
     result = Chats.get_chats_by_user_id(user.id, db=db)
-    return [build_chat_response(chat) for chat in result.items]
+    return [ChatResponse(**chat.model_dump()) for chat in result.items]
 
 
 ############################
@@ -774,7 +681,7 @@ async def get_user_chats(user=Depends(get_verified_user), db: Session = Depends(
 
 @router.get('/all/archived', response_model=list[ChatResponse])
 async def get_user_archived_chats(user=Depends(get_verified_user), db: Session = Depends(get_session)):
-    return [build_chat_response(chat) for chat in Chats.get_archived_chats_by_user_id(user.id, db=db)]
+    return [ChatResponse(**chat.model_dump()) for chat in Chats.get_archived_chats_by_user_id(user.id, db=db)]
 
 
 ############################
@@ -804,7 +711,7 @@ async def get_all_user_chats_in_db(user=Depends(get_admin_user), db: Session = D
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
         )
-    return [build_chat_response(chat) for chat in Chats.get_chats(db=db)]
+    return [ChatResponse(**chat.model_dump()) for chat in Chats.get_chats(db=db)]
 
 
 ############################
@@ -917,7 +824,7 @@ async def get_shared_chat_by_id(share_id: str, user=Depends(get_verified_user), 
         chat = Chats.get_chat_by_id(share_id, db=db)
 
     if chat:
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
 
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.NOT_FOUND)
@@ -947,7 +854,7 @@ async def get_user_chat_list_by_tag_name(
     if len(chats) == 0:
         Tags.delete_tag_by_name_and_user_id(form_data.name, user.id, db=db)
 
-    return [build_chat_title_id_payload(chat) for chat in chats]
+    return chats
 
 
 ############################
@@ -960,7 +867,7 @@ async def get_chat_by_id(id: str, user=Depends(get_verified_user), db: Session =
     chat = Chats.get_chat_by_id_and_user_id(id, user.id, db=db)
 
     if chat:
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
 
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.NOT_FOUND)
@@ -982,7 +889,7 @@ async def update_chat_by_id(
     if chat:
         updated_chat = {**chat.chat, **form_data.chat}
         chat = Chats.update_chat_by_id(id, updated_chat, db=db)
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
     else:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1048,7 +955,7 @@ async def update_chat_message_by_id(
             }
         )
 
-    return build_chat_response(chat)
+    return ChatResponse(**chat.model_dump())
 
 
 ############################
@@ -1166,7 +1073,7 @@ async def pin_chat_by_id(id: str, user=Depends(get_verified_user), db: Session =
     chat = Chats.get_chat_by_id_and_user_id(id, user.id, db=db)
     if chat:
         chat = Chats.toggle_chat_pinned_by_id(id, db=db)
-        return build_chat_response(chat)
+        return chat
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.DEFAULT())
 
@@ -1213,7 +1120,7 @@ async def clone_chat_by_id(
 
         if chats:
             chat = chats[0]
-            return build_chat_response(chat)
+            return ChatResponse(**chat.model_dump())
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1260,7 +1167,7 @@ async def clone_shared_chat_by_id(id: str, user=Depends(get_verified_user), db: 
 
         if chats:
             chat = chats[0]
-            return build_chat_response(chat)
+            return ChatResponse(**chat.model_dump())
         else:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1289,7 +1196,7 @@ async def archive_chat_by_id(id: str, user=Depends(get_verified_user), db: Sessi
             # Unarchived — ensure tag rows exist
             Tags.ensure_tags_exist(tag_ids, user.id, db=db)
 
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.DEFAULT())
 
@@ -1319,7 +1226,7 @@ async def share_chat_by_id(
     if chat:
         if chat.share_id:
             shared_chat = Chats.update_shared_chat_by_chat_id(chat.id, db=db)
-            return build_chat_response(shared_chat)
+            return ChatResponse(**shared_chat.model_dump())
 
         shared_chat = Chats.insert_shared_chat_by_chat_id(chat.id, db=db)
         if not shared_chat:
@@ -1327,7 +1234,7 @@ async def share_chat_by_id(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=ERROR_MESSAGES.DEFAULT(),
             )
-        return build_chat_response(shared_chat)
+        return ChatResponse(**shared_chat.model_dump())
 
     else:
         raise HTTPException(
@@ -1378,7 +1285,7 @@ async def update_chat_folder_id_by_id(
     chat = Chats.get_chat_by_id_and_user_id(id, user.id, db=db)
     if chat:
         chat = Chats.update_chat_folder_id_by_id_and_user_id(id, user.id, form_data.folder_id, db=db)
-        return build_chat_response(chat)
+        return ChatResponse(**chat.model_dump())
     else:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.DEFAULT())
 

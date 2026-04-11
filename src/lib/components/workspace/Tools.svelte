@@ -38,7 +38,6 @@
 	import ImportModal from '../ImportModal.svelte';
 	import ViewSelector from './common/ViewSelector.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
-	import { HERMES_COMMUNITY_URL } from '$lib/constants';
 
 	let shiftKey = false;
 	let loaded = false;
@@ -92,8 +91,27 @@
 	};
 
 	const shareHandler = async (tool) => {
-		toast.success($i18n.t('Opening Hermes community hub'));
-		window.open(HERMES_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
+		const item = await getToolById(localStorage.token, tool.id).catch((error) => {
+			toast.error(`${error}`);
+			return null;
+		});
+
+		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
+
+		const url = 'https://openwebui.com';
+
+		const tab = await window.open(`${url}/tools/create`, '_blank');
+
+		const messageHandler = (event) => {
+			if (event.origin !== url) return;
+			if (event.data === 'loaded') {
+				tab.postMessage(JSON.stringify(item), '*');
+				window.removeEventListener('message', messageHandler);
+			}
+		};
+
+		window.addEventListener('message', messageHandler, false);
+		console.log(item);
 	};
 
 	const cloneHandler = async (tool) => {
@@ -547,12 +565,12 @@
 	{#if $config?.features.enable_community_sharing}
 		<div class=" my-16">
 			<div class=" text-xl font-medium mb-1 line-clamp-1">
-				{$i18n.t('Hermes community resources')}
+				{$i18n.t('Made by Open WebUI Community')}
 			</div>
 
 			<a
 				class=" flex cursor-pointer items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-850 w-full mb-2 px-3.5 py-1.5 rounded-xl transition"
-				href={HERMES_COMMUNITY_URL}
+				href="https://openwebui.com/tools"
 				target="_blank"
 			>
 				<div class=" self-center">

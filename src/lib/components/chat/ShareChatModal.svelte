@@ -1,11 +1,10 @@
 <script lang="ts">
 	import { getContext, onMount } from 'svelte';
-	import { config } from '$lib/stores';
+	import { models, config } from '$lib/stores';
 
 	import { toast } from 'svelte-sonner';
 	import { deleteSharedChatById, getChatById, shareChatById } from '$lib/apis/chats';
 	import { copyToClipboard } from '$lib/utils';
-	import { HERMES_COMMUNITY_URL } from '$lib/constants';
 
 	import Modal from '../common/Modal.svelte';
 	import Link from '../icons/Link.svelte';
@@ -29,8 +28,30 @@
 	};
 
 	const shareChat = async () => {
-		toast.success($i18n.t('Opening Hermes community hub'));
-		window.open(HERMES_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
+		const _chat = chat.chat;
+		console.log('share', _chat);
+
+		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
+		const url = 'https://openwebui.com';
+		// const url = 'http://localhost:5173';
+
+		const tab = await window.open(`${url}/chats/upload`, '_blank');
+		window.addEventListener(
+			'message',
+			(event) => {
+				if (event.origin !== url) return;
+				if (event.data === 'loaded') {
+					tab.postMessage(
+						JSON.stringify({
+							chat: _chat,
+							models: $models.filter((m) => _chat.models.includes(m.id))
+						}),
+						'*'
+					);
+				}
+			},
+			false
+		);
 	};
 
 	export let show = false;
@@ -115,7 +136,7 @@
 										show = false;
 									}}
 								>
-									{$i18n.t('Share publicly')}
+									{$i18n.t('Share to Open WebUI Community')}
 								</button>
 							{/if}
 

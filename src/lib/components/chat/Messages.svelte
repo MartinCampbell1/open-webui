@@ -28,7 +28,6 @@
 
 	export let chatId = '';
 	export let user = $_user;
-	export let chatHermesSession: Record<string, any> | null = null;
 
 	export let prompt;
 	export let history = {};
@@ -48,7 +47,6 @@
 	export let showMessage: Function = () => {};
 	export let submitMessage: Function = () => {};
 	export let addMessages: Function = () => {};
-	export let respondToApproval: Function = () => {};
 
 	export let readOnly = false;
 	export let editCodeBlock = true;
@@ -471,7 +469,6 @@
 							<Message
 								{chatId}
 								bind:history
-								{chatHermesSession}
 								{selectedModels}
 								messageId={message.id}
 								idx={messageIdx}
@@ -491,7 +488,6 @@
 								{continueResponse}
 								{mergeResponses}
 								{addMessages}
-								{respondToApproval}
 								{triggerScroll}
 								{readOnly}
 								{editCodeBlock}

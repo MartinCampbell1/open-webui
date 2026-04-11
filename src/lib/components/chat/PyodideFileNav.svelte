@@ -1,10 +1,10 @@
 <script context="module">
-	const persistedPyodideFileNavState = { path: '/mnt/uploads' };
+	let savedPyodidePath = '/mnt/uploads';
 </script>
 
 <script lang="ts">
 	import { getContext, onMount, onDestroy, tick } from 'svelte';
-	import { pyodideWorker, type WorkspacePanelStatus } from '$lib/stores';
+	import { pyodideWorker } from '$lib/stores';
 	import PyodideWorkerConstructor from '$lib/workers/pyodide.worker?worker';
 	import type { FileEntry } from '$lib/apis/terminal';
 
@@ -13,21 +13,16 @@
 	import FilePreview from './FileNav/FilePreview.svelte';
 	import ConfirmDialog from '../common/ConfirmDialog.svelte';
 	import Spinner from '../common/Spinner.svelte';
-	import Tooltip from '../common/Tooltip.svelte';
 	import Folder from '../icons/Folder.svelte';
 	import Document from '../icons/Document.svelte';
-	import HermesWorkspaceGuideRow from '$lib/components/hermes/workspace/HermesWorkspaceGuideRow.svelte';
 
-	const i18n = getContext<any>('i18n');
+	const i18n = getContext('i18n');
 
 	export let overlay = false;
-	export let onAttach: ((blob: Blob, name: string, contentType: string) => void) | null = null;
-	export let onWorkspaceStatusChange: ((status: WorkspacePanelStatus) => void) | null = null;
 
 	// ── State ─────────────────────────────────────────────────────────────
-	let currentPath = persistedPyodideFileNavState.path;
+	let currentPath = savedPyodidePath;
 	let entries: FileEntry[] = [];
-	let filterQuery = '';
 	let loading = false;
 	let error: string | null = null;
 
@@ -35,7 +30,6 @@
 	let fileLoading = false;
 	let fileContent: string | null = null;
 	let fileImageUrl: string | null = null;
-	let attaching = false;
 
 	let isDragOver = false;
 	let showDeleteConfirm = false;
@@ -148,22 +142,6 @@
 	};
 
 	$: breadcrumbs = buildBreadcrumbs(currentPath);
-	$: workspaceGuideMeta = [
-		$i18n.t('Workspace path: {{PATH}}', { PATH: currentPath }),
-		$i18n.t('Files: {{COUNT}}', { COUNT: filteredEntries.length })
-	];
-	$: filteredEntries = filterQuery
-		? entries.filter((entry) => entry.name.toLowerCase().includes(filterQuery.toLowerCase()))
-		: entries;
-	$: onWorkspaceStatusChange?.({
-		source: 'pyodide',
-		currentPath,
-		itemCount: entries.length,
-		visibleItemCount: selectedFile ? 0 : filteredEntries.length,
-		selectedFile,
-		selectedFileName: selectedFile?.split('/').pop() ?? null,
-		attachEnabled: !!onAttach && !!selectedFile && !attaching
-	});
 
 	// ── Operations ────────────────────────────────────────────────────────
 
@@ -173,7 +151,7 @@
 		selectedFile = null;
 		clearPreview();
 		currentPath = path.endsWith('/') ? path : path + '/';
-		persistedPyodideFileNavState.path = currentPath;
+		savedPyodidePath = currentPath;
 		pushNavHistory(currentPath);
 
 		try {
@@ -247,25 +225,6 @@
 			}
 		} catch (e) {
 			console.error('Download failed:', e);
-		}
-	};
-
-	const attachSelectedFile = async () => {
-		if (!onAttach || !selectedFile) return;
-
-		attaching = true;
-		try {
-			const res = await sendWorkerMessage({ type: 'fs:read', path: selectedFile });
-			if (res.data) {
-				const blob = new Blob([res.data]);
-				onAttach(
-					blob,
-					selectedFile.split('/').pop() ?? 'file',
-					blob.type || 'application/octet-stream'
-				);
-			}
-		} finally {
-			attaching = false;
 		}
 	};
 
@@ -396,14 +355,14 @@
 	on:confirm={doDelete}
 />
 
-	<div
-		class="flex flex-col h-full min-h-0 min-w-0 relative"
-		on:dragover={handleDragOver}
-		on:dragleave={() => (isDragOver = false)}
-		on:drop={handleDrop}
-		role="region"
-		aria-label={$i18n.t('Python workspace browser')}
-	>
+<div
+	class="flex flex-col h-full min-h-0 min-w-0 relative"
+	on:dragover={handleDragOver}
+	on:dragleave={() => (isDragOver = false)}
+	on:drop={handleDrop}
+	role="region"
+	aria-label={$i18n.t('Pyodide file browser')}
+>
 	{#if isDragOver}
 		<div
 			class="absolute inset-0 z-10 flex flex-col items-center justify-center bg-white/80 dark:bg-gray-850/80 backdrop-blur-sm pointer-events-none gap-1.5"
@@ -422,14 +381,12 @@
 					d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
 				/>
 			</svg>
-			<span class="text-xs text-gray-400 dark:text-gray-500">
-				{$i18n.t('Drop files here to add them to the Python workspace')}
-			</span>
+			<span class="text-xs text-gray-400 dark:text-gray-500">{$i18n.t('Drop files here')}</span>
 		</div>
 	{/if}
 
 	{#if overlay}
-		<div class="absolute inset-0 z-10 pointer-events-none"></div>
+		<div class="absolute inset-0 z-10 pointer-events-none" />
 	{/if}
 
 	<!-- Toolbar (shared with FileNav) -->
@@ -437,7 +394,6 @@
 		{breadcrumbs}
 		{selectedFile}
 		{loading}
-		{filterQuery}
 		{canGoBack}
 		{canGoForward}
 		onGoBack={goBack}
@@ -458,54 +414,7 @@
 		onNewFile={startNewFile}
 		onUploadFiles={uploadFiles}
 		onMove={() => {}}
-		onFilterChange={(value) => {
-			filterQuery = value;
-		}}
 	>
-		<Tooltip content={$i18n.t('Attach to chat')}>
-			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
-				on:click={attachSelectedFile}
-				disabled={!onAttach || attaching}
-				aria-label={$i18n.t('Attach to chat')}
-			>
-				{#if attaching}
-					<Spinner className="size-3.5" />
-				{:else}
-					<svg
-						xmlns="http://www.w3.org/2000/svg"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="1.5"
-						class="size-3.5"
-					>
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
-					</svg>
-				{/if}
-			</button>
-		</Tooltip>
-		<Tooltip content={$i18n.t('Close')}>
-			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
-				on:click={() => {
-					selectedFile = null;
-					clearPreview();
-				}}
-				aria-label={$i18n.t('Close')}
-			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					fill="none"
-					stroke="currentColor"
-					stroke-width="1.5"
-					class="size-3.5"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-				</svg>
-			</button>
-		</Tooltip>
 		<!-- File action buttons when a file is selected (slot content) -->
 		<button
 			class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
@@ -528,31 +437,6 @@
 		</button>
 	</FileNavToolbar>
 
-	{#if !selectedFile && !loading && !error}
-		<HermesWorkspaceGuideRow
-			title={$i18n.t('Python workspace')}
-			description={$i18n.t(
-				'Browse the sandbox, preview files in place, or attach the selected file back into chat.'
-			)}
-			metaItems={workspaceGuideMeta}
-		>
-			<svelte:fragment slot="actions">
-				<button
-					class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
-					on:click={startNewFolder}
-				>
-					{$i18n.t('New Folder')}
-				</button>
-				<button
-					class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
-					on:click={startNewFile}
-				>
-					{$i18n.t('New File')}
-				</button>
-			</svelte:fragment>
-		</HermesWorkspaceGuideRow>
-	{/if}
-
 	<!-- Content area -->
 	<div class="flex-1 min-h-0 flex flex-col">
 		{#if selectedFile}
@@ -569,19 +453,12 @@
 			<div class="flex flex-col items-center justify-center flex-1 p-6 text-center gap-2">
 				<Folder className="size-5 text-gray-300 dark:text-gray-600" />
 				<div class="text-xs text-gray-400 dark:text-gray-500">
-					{$i18n.t('This Python workspace is empty. Upload files, create a folder, or run Python code to create workspace content.')}
+					{$i18n.t('No files yet. Upload files or run Python code to create them.')}
 				</div>
 			</div>
 		{/if}
 
 		{#if !loading && !error && !selectedFile}
-			{#if entries.length > 0 && filteredEntries.length === 0 && !creatingFolder && !creatingFile}
-				<div class="flex flex-col items-center justify-center flex-1 p-6 text-center gap-2">
-					<div class="text-xs text-gray-400 dark:text-gray-500">
-						{$i18n.t('No matching workspace files found')}
-					</div>
-				</div>
-			{/if}
 			{#if creatingFolder}
 				<div class="flex items-center gap-2 px-3 py-1.5">
 					<Folder className="size-4 shrink-0 text-blue-400 dark:text-blue-300" />
@@ -621,9 +498,9 @@
 				</div>
 			{/if}
 
-			{#if filteredEntries.length > 0 || creatingFolder || creatingFile}
+			{#if entries.length > 0 || creatingFolder || creatingFile}
 				<ul class="overflow-y-auto flex-1 min-h-0">
-					{#each filteredEntries as entry (entry.name)}
+					{#each entries as entry (entry.name)}
 						<FileEntryRow
 							{entry}
 							{currentPath}

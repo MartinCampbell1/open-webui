@@ -1,16 +1,16 @@
+<script context="module" lang="ts">
+	let savedTab: 'controls' | 'files' | 'overview' = 'controls';
+</script>
+
 <script lang="ts">
-	import { Pane, PaneResizer, type PaneAPI } from 'paneforge';
-	import { onMount, tick, getContext } from 'svelte';
+	import { SvelteFlowProvider } from '@xyflow/svelte';
+	import { slide } from 'svelte/transition';
+	import { Pane, PaneResizer } from 'paneforge';
+	import { v4 as uuidv4 } from 'uuid';
+
+	import { onDestroy, onMount, tick, getContext } from 'svelte';
 	import {
-		chatControlsOpenTarget,
 		config,
-		hermesContextLoaded,
-		hermesContextLoading,
-		hermesProfilesLoaded,
-		hermesProfilesLoading,
-		hermesProfilesStore,
-		hermesRuntimeStore,
-		hermesWorkspacesStore,
 		terminalServers,
 		mobile,
 		showControls,
@@ -20,537 +20,83 @@
 		settings,
 		showFileNavPath,
 		selectedTerminalId,
-		temporaryChatEnabled,
-		user,
-		type HermesControlsOpenTarget,
-		type WorkspacePanelStatus
+		user
 	} from '$lib/stores';
 
 	import { uploadFile } from '$lib/apis/files';
-	import type { HermesWorkspacesResponse } from '$lib/apis/hermes';
 	import { toast } from 'svelte-sonner';
-	import { collectHermesGeneratedWorkspaceFiles } from '$lib/utils/hermesWorkspace';
-	import { buildHermesContextSummary, ensureHermesContextBundle } from '$lib/utils/hermesContext';
 
 	import Controls from './Controls/Controls.svelte';
 	import CallOverlay from './MessageInput/CallOverlay.svelte';
 	import Drawer from '../common/Drawer.svelte';
-	import Modal from '../common/Modal.svelte';
 	import Artifacts from './Artifacts.svelte';
 	import Embeds from './ChatControls/Embeds.svelte';
-	import HermesControlsModeHeader from './ChatControls/HermesControlsModeHeader.svelte';
-	import HermesControlsModeSummary from './ChatControls/HermesControlsModeSummary.svelte';
 	import FileNav from './FileNav.svelte';
 	import PyodideFileNav from './PyodideFileNav.svelte';
 	import Overview from './Overview.svelte';
-	import HermesOverviewPanel from '$lib/components/hermes/panels/HermesOverviewPanel.svelte';
-	import HermesWorkspaceHeader from '$lib/components/hermes/workspace/HermesWorkspaceHeader.svelte';
-	import HermesWorkspaceStub from '$lib/components/hermes/workspace/HermesWorkspaceStub.svelte';
-	import HermesSessionPanel from '$lib/components/hermes/panels/HermesSessionPanel.svelte';
-	import HermesProfilePanel from '$lib/components/hermes/panels/HermesProfilePanel.svelte';
-	import HermesSkillsPanel from '$lib/components/hermes/panels/HermesSkillsPanel.svelte';
-	import HermesMemoryPanel from '$lib/components/hermes/panels/HermesMemoryPanel.svelte';
-	import HermesTasksPanel from '$lib/components/hermes/panels/HermesTasksPanel.svelte';
-	import HermesTodosPanel from '$lib/components/hermes/panels/HermesTodosPanel.svelte';
-	import { getResolvedHermesSessionContext } from '$lib/utils/hermesSessions';
 
-	const i18n = getContext<any>('i18n');
-	const HERMES_OPERATOR_MODE = true;
-	type PanelMode = 'operator' | 'inspect';
-	type PanelTabId =
-		| 'controls'
-		| 'files'
-		| 'history'
-		| 'overview'
-		| 'session'
-		| 'profile'
-		| 'skills'
-		| 'memory'
-		| 'tasks'
-		| 'todos';
-	type PanelTab = {
-		id: PanelTabId;
-		label: string;
-	};
+	const i18n = getContext('i18n');
 
-	export let history: Record<string, any> = {};
-	export let models: any[] = [];
+	export let history;
+	export let models = [];
 
-	export let chatId: string | null = null;
-	export let chatHermesSession: Record<string, any> | null = null;
-	export let chatMeta: Record<string, any> | null = null;
+	export let chatId = null;
 
-	export let chatFiles: any[] = [];
-	export let params: Record<string, any> = {};
+	export let chatFiles = [];
+	export let params = {};
 
 	export let eventTarget: EventTarget;
 	export let submitPrompt: Function;
 	export let stopResponse: Function;
 	export let showMessage: Function;
-	export let files: any[] = [];
-	export let modelId: string | null = null;
-	export let taskIds: string[] | null = null;
-	export let generating = false;
-	export let pendingApproval: Record<string, any> | null = null;
-	export let liveRunActivityMessage: any = null;
-	export let liveRunStatusUpdatesEnabled = true;
-	export let hermesStreamActive = false;
+	export let files;
+	export let modelId;
 
 	export let codeInterpreterEnabled = false;
-	export let onHermesProfileSwitched: (
-		payload?: Record<string, any> | null
-	) => void | Promise<void> = () => {};
 
-	export let pane: PaneAPI | undefined = undefined;
+	export let pane: Pane | null = null;
 
 	let largeScreen = false;
 	let dragged = false;
 	let minSize = 0;
 	let paneReady = false;
-	let activeMode: PanelMode = 'operator';
-	let showOverviewCanvas = false;
-	let activeWorkspaceSource: WorkspacePanelStatus['source'] = 'stub';
-	let defaultWorkspaceStatus: WorkspacePanelStatus = {
-		source: 'stub',
-		currentPath: undefined,
-		itemCount: undefined,
-		visibleItemCount: undefined,
-		linkedItemCount: undefined,
-		selectedFile: null,
-		selectedFileName: null,
-		attachEnabled: false
-	};
-	let effectiveWorkspaceStatus: WorkspacePanelStatus = defaultWorkspaceStatus;
 
-	// Tab state for Controls+Workspace panel
-	let activeTab: PanelTabId = 'session';
-	let lastControlsContextKey: string | null = null;
-
-	let hasMessages = false;
-	let primaryTabs: PanelTab[] = [];
-	let inspectTabs: PanelTab[] = [];
-	let visibleTabs: PanelTab[] = [];
-	let showPrimaryContextSummary = false;
-	let showInspectContextSummary = false;
-	let derivedPendingApproval: Record<string, any> | null = null;
-	let liveRunPendingApproval: Record<string, any> | null = null;
-	let liveRunGenerating = false;
-	let liveRunActiveModelLabel = '';
-
-	$: hasMessages = !!(history?.messages && Object.keys(history.messages).length > 0);
-	$: currentHermesMeta = getResolvedHermesSessionContext({
-		session: chatHermesSession,
-		meta: chatMeta,
-		runtime: $hermesRuntimeStore
-	});
-	$: controlsContextKey = [
-		chatId ?? 'draft',
-		currentHermesMeta?.session_id ?? 'no-session',
-		currentHermesMeta?.target_id ?? 'no-target'
-	].join(':');
-	$: showAdvancedTab = HERMES_OPERATOR_MODE
-		? $user?.role === 'admin'
-		: $user?.role === 'admin' || ($user?.permissions?.chat?.controls ?? true);
-	$: showSessionTab = true;
-	$: showProfileTab = !!$user;
-	$: showSkillsTab = $user?.role === 'admin' || ($user?.permissions?.workspace?.skills ?? false);
-	$: showMemoryTab =
-		$config?.features?.enable_memories &&
-		($user?.role === 'admin' || ($user?.permissions?.features?.memories ?? true));
-	$: showTasksTab =
-		hasMessages ||
-		taskIds !== null ||
-		generating ||
-		hermesStreamActive ||
-		!!pendingApproval ||
-		!!derivedPendingApproval;
-	$: showTodosTab = hasMessages;
-	$: showFilesTab = true;
-	$: showOverviewTab = hasMessages;
-	$: primaryTabs = [
-		...(showSessionTab ? [{ id: 'session', label: $i18n.t('Current context') }] : []),
-		...(showSessionTab ? [{ id: 'history', label: $i18n.t('Session history') }] : []),
-		...(showFilesTab ? [{ id: 'files', label: $i18n.t('Workspace') }] : []),
-		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Live run') }] : [])
-	] as PanelTab[];
-	$: inspectTabs = [
-		...(showProfileTab ? [{ id: 'profile', label: $i18n.t('Profile') }] : []),
-		...(showSkillsTab ? [{ id: 'skills', label: $i18n.t('Skills') }] : []),
-		...(showMemoryTab ? [{ id: 'memory', label: $i18n.t('Memory') }] : []),
-		...(showOverviewTab ? [{ id: 'overview', label: $i18n.t('Overview') }] : []),
-		...(showTodosTab ? [{ id: 'todos', label: $i18n.t('Todos') }] : []),
-		...(showAdvancedTab ? [{ id: 'controls', label: $i18n.t('Advanced') }] : [])
-	] as PanelTab[];
-	$: visibleTabs = activeMode === 'inspect' ? inspectTabs : primaryTabs;
-	$: modeDescription = visibleTabs.map((tab) => tab.label).join(' · ');
-	$: showPrimaryContextSummary =
-		!!panelContextSummary && activeMode === 'operator' && activeTab === 'tasks';
-	$: showInspectContextSummary =
-		!!panelContextSummary && activeMode === 'inspect' && activeTab !== 'overview';
-	$: if (activeMode === 'inspect' && inspectTabs.length === 0) {
-		activeMode = 'operator';
+	// Tab state for Controls+Files panel
+	let activeTab = savedTab;
+	// svelte-ignore reactive_declaration_module_script_dependency
+	$: {
+		savedTab = activeTab;
 	}
-	let workspaceStatus: WorkspacePanelStatus | null = null;
 
-	$: activeWorkspaceSource = $selectedTerminalId
-		? 'terminal'
-		: codeInterpreterEnabled
-			? 'pyodide'
-			: 'stub';
-	$: generatedWorkspaceFiles = collectHermesGeneratedWorkspaceFiles(history);
-	$: stubWorkspaceItemCount = (chatFiles?.length ?? 0) + generatedWorkspaceFiles.length;
-	$: defaultWorkspaceStatus = {
-		source: activeWorkspaceSource,
-		currentPath: undefined,
-		itemCount: activeWorkspaceSource === 'stub' ? stubWorkspaceItemCount : undefined,
-		visibleItemCount: undefined,
-		linkedItemCount: activeWorkspaceSource === 'stub' ? stubWorkspaceItemCount : undefined,
-		selectedFile: null,
-		selectedFileName: null,
-		attachEnabled: false
-	} satisfies WorkspacePanelStatus;
-	$: effectiveWorkspaceStatus =
-		workspaceStatus?.source === activeWorkspaceSource
-			? {
-					...defaultWorkspaceStatus,
-					...workspaceStatus,
-					itemCount: workspaceStatus.itemCount ?? defaultWorkspaceStatus.itemCount
-				}
-			: defaultWorkspaceStatus;
-	$: activeHermesWorkspaceItem =
-		$hermesWorkspacesStore?.items?.find((item) => item.is_active) ?? null;
-	$: activeHermesWorkspaceName = activeHermesWorkspaceItem?.name ?? '';
-	$: activeHermesWorkspacePath = activeHermesWorkspaceItem?.path ?? '';
-	$: workspaceTitle =
-		activeHermesWorkspaceName ||
-		($selectedTerminalId
-			? $i18n.t('Terminal files')
-			: codeInterpreterEnabled
-				? $i18n.t('Code workspace')
-				: $i18n.t('Workspace'));
-	$: workspaceSubtitle = $selectedTerminalId
-		? $i18n.t('Browse, preview, and attach files for the current conversation.')
-		: codeInterpreterEnabled
-			? $i18n.t('Inspect runtime files created during this session.')
-			: $i18n.t('Inspect the active Hermes workspace and files attached to this chat.');
-	$: workspaceBadge = $selectedTerminalId
-		? $i18n.t('Terminal')
-		: codeInterpreterEnabled
-			? $i18n.t('Local')
-			: $i18n.t('Hermes');
-	$: workspacePathLabel = effectiveWorkspaceStatus.currentPath
-		? $i18n.t('Path: {{PATH}}', { PATH: effectiveWorkspaceStatus.currentPath })
-		: activeHermesWorkspacePath
-			? $i18n.t('Path: {{PATH}}', { PATH: activeHermesWorkspacePath })
-			: activeWorkspaceSource === 'stub'
-				? $i18n.t('Chat files only')
-				: $i18n.t('No active directory');
-	$: workspaceVisibleItemCount =
-		typeof effectiveWorkspaceStatus.visibleItemCount === 'number'
-			? effectiveWorkspaceStatus.visibleItemCount
-			: activeWorkspaceSource !== 'stub' && typeof effectiveWorkspaceStatus.itemCount === 'number'
-				? effectiveWorkspaceStatus.itemCount
-				: null;
-	$: workspaceItemCountLabel =
-		typeof workspaceVisibleItemCount === 'number'
-			? $i18n.t('Visible items: {{COUNT}}', {
-					COUNT: workspaceVisibleItemCount
-				})
-			: '';
-	$: workspaceSelectionLabel = effectiveWorkspaceStatus.selectedFileName
-		? $i18n.t('Previewing {{NAME}}', { NAME: effectiveWorkspaceStatus.selectedFileName })
-		: '';
-	$: workspaceMetaItems = [
-		workspacePathLabel,
-		workspaceItemCountLabel,
-		workspaceSelectionLabel
-	].filter(Boolean);
-	$: panelContextSummary = buildHermesContextSummary({
-		chatHermesSession,
-		chatMeta,
-		runtime: $hermesRuntimeStore,
-		workspaces: $hermesWorkspacesStore,
-		profiles: $hermesProfilesStore,
-		workspaceStatus: effectiveWorkspaceStatus,
-		temporaryChatEnabled: $temporaryChatEnabled,
-		currentMessageId: history?.currentId,
-		selectedModelLabel: models?.[0]?.name ?? modelId ?? '',
-		generatedFileCount: generatedWorkspaceFiles.length,
-		chatAttachedFileCount: chatFiles?.length ?? 0,
-		taskCount: taskIds?.length ?? 0
-	});
-	$: liveRunActiveModelLabel =
-		panelContextSummary.activeModelLabel ||
-		panelContextSummary.browserFallbackModelLabel ||
-		models?.[0]?.name ||
-		modelId ||
-		'';
-	$: derivedPendingApproval = (() => {
-		const messages = history?.messages ?? {};
-		const seen = new Set<string>();
-		let messageId = history?.currentId ?? null;
+	$: hasMessages = history?.messages && Object.keys(history.messages).length > 0;
 
-		while (messageId && !seen.has(messageId)) {
-			const message = messages[messageId];
-			if (!message) {
-				break;
-			}
-
-			if (message.role === 'assistant' && message?.hermesApproval?.state === 'pending') {
-				return message.hermesApproval ?? null;
-			}
-
-			seen.add(messageId);
-			messageId = message.parentId ?? null;
-		}
-
-		return null;
-	})();
-	$: liveRunPendingApproval = pendingApproval ?? derivedPendingApproval;
-	$: liveRunGenerating = generating || hermesStreamActive;
-	$: panelStats = [
-		typeof panelContextSummary.workspaceVisibleCount === 'number'
-			? {
-					label: $i18n.t('Workspace'),
-					value: panelContextSummary.workspaceVisibleCount
-				}
-			: null,
-		typeof panelContextSummary.chatAttachedFileCount === 'number'
-			? {
-					label: $i18n.t('Attached'),
-					value: panelContextSummary.chatAttachedFileCount
-				}
-			: null,
-		typeof panelContextSummary.generatedFileCount === 'number'
-			? {
-					label: $i18n.t('Generated'),
-					value: panelContextSummary.generatedFileCount
-				}
-			: null,
-		typeof panelContextSummary.taskCount === 'number'
-			? {
-					label: $i18n.t('Tasks'),
-					value: panelContextSummary.taskCount
-				}
-			: null
-	].filter(Boolean);
-	$: workspaceHeaderStats = [
-		typeof panelContextSummary.workspaceVisibleCount === 'number'
-			? {
-					label: $i18n.t('Workspace'),
-					value: panelContextSummary.workspaceVisibleCount
-				}
-			: null,
-		typeof panelContextSummary.chatAttachedFileCount === 'number'
-			? {
-					label: $i18n.t('Attached'),
-					value: panelContextSummary.chatAttachedFileCount
-				}
-			: null,
-		typeof panelContextSummary.generatedFileCount === 'number'
-			? {
-					label: $i18n.t('Generated'),
-					value: panelContextSummary.generatedFileCount
-				}
-			: null
-	].filter(Boolean);
-
-	const getOperatorFallbackTab = (): PanelTabId => {
-		if (showSessionTab) return 'session';
-		if (showFilesTab) return 'files';
-		if (showTasksTab) return 'tasks';
-		if (showProfileTab) return 'profile';
-		if (showSkillsTab) return 'skills';
-		if (showMemoryTab) return 'memory';
-		if (showOverviewTab) return 'overview';
-		if (showTodosTab) return 'todos';
-		if (showAdvancedTab) return 'controls';
-		return 'files';
-	};
-
-	const getInspectFallbackTab = (): PanelTabId => {
-		if (showProfileTab) return 'profile';
-		if (showSkillsTab) return 'skills';
-		if (showMemoryTab) return 'memory';
-		if (showOverviewTab) return 'overview';
-		if (showTodosTab) return 'todos';
-		if (showAdvancedTab) return 'controls';
-		return getOperatorFallbackTab();
-	};
-
-	const isInspectTab = (tabId: PanelTabId): boolean => {
-		return inspectTabs.some((tab) => tab.id === tabId);
-	};
-
-	const ensureTabForMode = (mode: PanelMode, tabId: PanelTabId): PanelTabId => {
-		const tabIsInspect = isInspectTab(tabId);
-
-		if (mode === 'inspect') {
-			return tabIsInspect ? tabId : getInspectFallbackTab();
-		}
-
-		return tabIsInspect ? getOperatorFallbackTab() : tabId;
-	};
-
-	const handleTabSelect = (tabId: string) => {
-		activeTab = tabId as PanelTabId;
-	};
-
-	const openOperatorTab = (tabId: PanelTabId) => {
-		setActiveMode('operator');
-		activeTab = tabId;
-	};
-
-	const openInspectTab = (tabId: PanelTabId) => {
-		setActiveMode('inspect');
-		activeTab = tabId;
-	};
-
-	const handleControlsClose = () => {
-		showOverviewCanvas = false;
-		showControls.set(false);
-	};
-
-	const handleOpenOverviewCanvas = () => {
-		showOverviewCanvas = true;
-	};
-
-	const handleCloseOverviewCanvas = () => {
-		showOverviewCanvas = false;
-	};
-
-	const handleOverviewNodeClick = (e: any) => {
-		const node = e?.node;
-		const message = node?.data?.message;
-		if (!message) {
-			return;
-		}
-
-		if (node?.data?.message?.favorite) {
-			history.messages[node.data.message.id].favorite = true;
-		} else if (history?.messages?.[node?.data?.message?.id]) {
-			history.messages[node.data.message.id].favorite = null;
-		}
-
-		showOverviewCanvas = false;
-		showMessage(message, true);
-	};
-
-	const setActiveMode = (nextMode: PanelMode) => {
-		activeMode = nextMode;
-		activeTab = ensureTabForMode(nextMode, activeTab);
-	};
-
-	const handleWorkspaceStatusChange = (nextStatus: WorkspacePanelStatus) => {
-		workspaceStatus = nextStatus;
-	};
-
-	const handleHermesProfileSwitched = async (payload: Record<string, any> | null = null) => {
-		hermesRuntimeStore.set(null);
-		hermesWorkspacesStore.set(null);
-		hermesProfilesStore.set(null);
-		hermesContextLoaded.set(false);
-		hermesProfilesLoaded.set(false);
-		workspaceStatus = null;
-
-		await onHermesProfileSwitched(payload);
-
-		if ($showControls) {
-			await ensureHermesContextBundle(localStorage?.token, {
-				force: true,
-				includeProfiles: true
-			});
-		}
-	};
-
-	const handleHermesWorkspaceSwitched = (payload: HermesWorkspacesResponse) => {
-		hermesWorkspacesStore.set(payload);
-		hermesContextLoaded.set(true);
-		workspaceStatus = null;
-	};
+	$: showControlsTab = $user?.role === 'admin' || ($user?.permissions?.chat?.controls ?? true);
+	$: showFilesTab =
+		!!$selectedTerminalId ||
+		(codeInterpreterEnabled && $config?.code?.interpreter_engine !== 'jupyter');
+	$: showOverviewTab = hasMessages;
 
 	// Tab fallback: if active tab becomes hidden, switch to next available
-	$: if (!showOverviewTab && activeTab === 'overview') activeTab = getOperatorFallbackTab();
-	$: if (!showSessionTab && activeTab === 'session') activeTab = getOperatorFallbackTab();
-	$: if (!showSessionTab && activeTab === 'history') activeTab = getOperatorFallbackTab();
-	$: if (!showFilesTab && activeTab === 'files') activeTab = getOperatorFallbackTab();
-	$: if (!showSkillsTab && activeTab === 'skills') activeTab = getOperatorFallbackTab();
-	$: if (!showMemoryTab && activeTab === 'memory') activeTab = getOperatorFallbackTab();
-	$: if (!showTasksTab && activeTab === 'tasks') activeTab = getOperatorFallbackTab();
-	$: if (!showTodosTab && activeTab === 'todos') activeTab = getOperatorFallbackTab();
-	$: if (!showAdvancedTab && activeTab === 'controls') activeTab = getOperatorFallbackTab();
-	$: if (activeMode === 'operator' && isInspectTab(activeTab)) {
-		activeTab = getOperatorFallbackTab();
-	}
-	$: if (activeMode === 'inspect' && !isInspectTab(activeTab) && inspectTabs.length > 0) {
-		activeTab = getInspectFallbackTab();
-	}
-	$: if (controlsContextKey !== lastControlsContextKey) {
-		lastControlsContextKey = controlsContextKey;
-		workspaceStatus = null;
-		showOverviewCanvas = false;
-		activeMode = 'operator';
-		activeTab = showSessionTab ? 'session' : getOperatorFallbackTab();
-	}
-	$: if (!$showControls && showOverviewCanvas) {
-		showOverviewCanvas = false;
+	$: if (!showOverviewTab && activeTab === 'overview') activeTab = 'controls';
+	$: if (!showFilesTab && activeTab === 'files') activeTab = 'controls';
+	$: if (!showControlsTab && activeTab === 'controls') {
+		if (showFilesTab) activeTab = 'files';
+		else if (showOverviewTab) activeTab = 'overview';
 	}
 
 	// Auto-close if there are no visible tabs
-	$: if (
-		!showAdvancedTab &&
-		!showFilesTab &&
-		!showOverviewTab &&
-		!showSessionTab &&
-		!showProfileTab &&
-		!showSkillsTab &&
-		!showMemoryTab &&
-		!showTasksTab &&
-		!showTodosTab
-	) {
+	$: if (!showControlsTab && !showFilesTab && !showOverviewTab) {
 		showControls.set(false);
 	}
 
-	$: if ($chatControlsOpenTarget) {
-		const openTargetToTab: Record<Exclude<HermesControlsOpenTarget, null>, PanelTabId> = {
-			workspace: 'files',
-			context: 'session',
-			sessions: 'history',
-			profile: 'profile',
-			tasks: 'tasks'
-		};
-		const requestedTab = openTargetToTab[$chatControlsOpenTarget];
-
-		if (
-			(requestedTab === 'files' && showFilesTab) ||
-			(requestedTab === 'session' && showSessionTab) ||
-			(requestedTab === 'history' && showSessionTab) ||
-			(requestedTab === 'profile' && showProfileTab) ||
-			(requestedTab === 'tasks' && showTasksTab)
-		) {
-			activeTab = requestedTab;
-			setActiveMode(isInspectTab(requestedTab) ? 'inspect' : 'operator');
-		}
-
-		chatControlsOpenTarget.set(null);
-	}
-
-	// Auto-switch to Workspace tab when display_file is triggered
+	// Auto-switch to Files tab when display_file is triggered
 	$: if ($showFileNavPath) {
-		activeMode = 'operator';
 		activeTab = 'files';
 		showControls.set(true);
 	}
 
-	$: if ($showControls && (!$hermesContextLoaded || !$hermesProfilesLoaded)) {
-		if (!$hermesContextLoading && !$hermesProfilesLoading) {
-			void ensureHermesContextBundle(localStorage?.token, { includeProfiles: true });
-		}
-	}
-
-	// Auto-open Workspace tab when a terminal is selected (suppress panel open when full-screen)
+	// Auto-open Files tab when a terminal is selected (suppress panel open when full-screen)
 	$: if ($selectedTerminalId) {
-		activeMode = 'operator';
 		activeTab = 'files';
 		if (largeScreen) {
 			showControls.set(true);
@@ -559,7 +105,7 @@
 
 	// Attach a terminal file to the chat input
 	const handleTerminalAttach = async (blob: Blob, name: string, contentType: string) => {
-		const tempItemId = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+		const tempItemId = uuidv4();
 		const fileItem = {
 			type: 'file',
 			file: '',
@@ -600,15 +146,8 @@
 	};
 
 	export const openPane = () => {
-		if (!pane) {
-			return;
-		}
-
 		if (parseInt(localStorage?.chatControlsSize)) {
 			const container = document.getElementById('chat-container');
-			if (!container?.clientWidth) {
-				return;
-			}
 			let size = Math.floor(
 				(parseInt(localStorage?.chatControlsSize) / container.clientWidth) * 100
 			);
@@ -618,7 +157,7 @@
 		}
 	};
 
-	const handleMediaQuery = async (e: MediaQueryList | MediaQueryListEvent) => {
+	const handleMediaQuery = async (e) => {
 		if (e.matches) {
 			largeScreen = true;
 			if ($showCallOverlay) {
@@ -633,7 +172,7 @@
 				await tick();
 				showCallOverlay.set(true);
 			}
-			pane = undefined;
+			pane = null;
 		}
 	};
 
@@ -708,7 +247,6 @@
 	});
 
 	const closeHandler = () => {
-		showOverviewCanvas = false;
 		if (!largeScreen) {
 			showControls.set(false);
 		}
@@ -717,16 +255,7 @@
 		if ($showCallOverlay) showCallOverlay.set(false);
 	};
 
-	$: if (
-		paneReady &&
-		!chatId &&
-		activeTab !== 'session' &&
-		activeTab !== 'history' &&
-		$chatControlsOpenTarget !== 'context' &&
-		$chatControlsOpenTarget !== 'sessions'
-	) {
-		closeHandler();
-	}
+	$: if (paneReady && !chatId) closeHandler();
 
 	// Helper: is a "special" full-screen panel active?
 	$: specialPanel = $showCallOverlay || $showArtifacts || $showEmbeds;
@@ -757,147 +286,85 @@
 				{:else if $showEmbeds}
 					<Embeds />
 				{:else if $showArtifacts}
-					<Artifacts />
+					<Artifacts {history} />
 				{:else}
-					<!-- Controls + Workspace tabs -->
+					<!-- Controls + Files tabs -->
 					<div class="flex flex-col h-full min-h-0">
 						<!-- Tab bar -->
-						<HermesControlsModeHeader
-							mode={activeMode}
-							tabs={visibleTabs}
-							{activeTab}
-							inspectDisabled={inspectTabs.length === 0}
-							closeLabel={$i18n.t('Close')}
-							workLabel={$i18n.t('Work')}
-							inspectLabel={$i18n.t('Inspect')}
-							{modeDescription}
-							onSetMode={setActiveMode}
-							onSetTab={handleTabSelect}
-							onClose={handleControlsClose}
-						/>
+						<div class="flex items-center justify-between px-2 pt-2 pb-2 shrink-0">
+							<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
+								{#if showControlsTab}
+									<button
+										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										'controls'
+											? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+											: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+										on:click={() => (activeTab = 'controls')}
+									>
+										{$i18n.t('Controls')}
+									</button>
+								{/if}
+								{#if showFilesTab}
+									<button
+										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										'files'
+											? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+											: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+										on:click={() => (activeTab = 'files')}
+									>
+										{$i18n.t('Files')}
+									</button>
+								{/if}
+								{#if showOverviewTab}
+									<button
+										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										'overview'
+											? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+											: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+										on:click={() => (activeTab = 'overview')}
+									>
+										{$i18n.t('Overview')}
+									</button>
+								{/if}
+							</div>
+							<button
+								class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-500 dark:text-gray-400"
+								on:click={() => showControls.set(false)}
+								aria-label={$i18n.t('Close')}
+							>
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.5"
+									class="size-4"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+								</svg>
+							</button>
+						</div>
 
 						<div
 							class="flex-1 min-h-0 {activeTab === 'overview'
-								? 'overflow-y-auto'
+								? 'h-full'
 								: activeTab === 'controls'
 									? 'overflow-y-auto px-3 pt-1'
 									: ''}"
 						>
-							{#if showPrimaryContextSummary || showInspectContextSummary}
-								<HermesControlsModeSummary
-									mode={activeMode}
-									summary={panelContextSummary}
-									stats={panelStats}
-									on:workspace={() => openOperatorTab('files')}
-									on:session={() => openOperatorTab('session')}
-									on:profile={() => openInspectTab('profile')}
-								/>
-							{/if}
-
 							{#if activeTab === 'overview'}
-								<HermesOverviewPanel
-									active={activeTab === 'overview'}
+								<Overview
 									{history}
-									on:open={handleOpenOverviewCanvas}
-								/>
-							{:else if activeTab === 'profile'}
-								<HermesProfilePanel
-									active={activeTab === 'profile'}
-									{taskIds}
-									{hermesStreamActive}
-									onProfileSwitched={handleHermesProfileSwitched}
-								/>
-							{:else if activeTab === 'skills'}
-								<HermesSkillsPanel active={activeTab === 'skills'} />
-							{:else if activeTab === 'memory'}
-								<HermesMemoryPanel active={activeTab === 'memory'} />
-							{:else if activeTab === 'tasks'}
-								<HermesTasksPanel
-									active={activeTab === 'tasks'}
-									{taskIds}
-									{stopResponse}
-									generating={liveRunGenerating}
-									pendingApproval={liveRunPendingApproval}
-									activeModelLabel={liveRunActiveModelLabel}
-									activityMessage={liveRunActivityMessage}
-									statusUpdatesEnabled={liveRunStatusUpdatesEnabled}
-								/>
-							{:else if activeTab === 'todos'}
-								<HermesTodosPanel
-									active={activeTab === 'todos'}
-									{history}
-									onJumpToMessage={(message: Record<string, any>) => {
-										showMessage(message, true);
+									onNodeClick={(e) => {
+										const node = e.node;
+										showMessage(node.data.message, true);
 									}}
-								/>
-							{:else if activeTab === 'session'}
-								<HermesSessionPanel
-									active={activeTab === 'session'}
-									{chatId}
-									{chatHermesSession}
-									{chatMeta}
-									{history}
-									{models}
-									{taskIds}
-									{chatFiles}
-									mode="context"
-								/>
-							{:else if activeTab === 'history'}
-								<HermesSessionPanel
-									active={activeTab === 'history'}
-									{chatId}
-									{chatHermesSession}
-									{chatMeta}
-									{history}
-									{models}
-									{taskIds}
-									{chatFiles}
-									mode="history"
+									onClose={() => showControls.set(false)}
 								/>
 							{:else if activeTab === 'files' && $selectedTerminalId}
-								<div class="flex h-full min-h-0 flex-col">
-									<HermesWorkspaceHeader
-										title={workspaceTitle}
-										subtitle={workspaceSubtitle}
-										badge={workspaceBadge}
-										metaItems={workspaceMetaItems}
-										stats={workspaceHeaderStats}
-									/>
-									<div class="flex-1 min-h-0">
-										<FileNav
-											onAttach={handleTerminalAttach}
-											onWorkspaceStatusChange={handleWorkspaceStatusChange}
-										/>
-									</div>
-								</div>
+								<FileNav onAttach={handleTerminalAttach} />
 							{:else if activeTab === 'files' && codeInterpreterEnabled}
-								<div class="flex h-full min-h-0 flex-col">
-									<HermesWorkspaceHeader
-										title={workspaceTitle}
-										subtitle={workspaceSubtitle}
-										badge={workspaceBadge}
-										metaItems={workspaceMetaItems}
-										stats={workspaceHeaderStats}
-									/>
-									<div class="flex-1 min-h-0">
-										<PyodideFileNav
-											onAttach={handleTerminalAttach}
-											onWorkspaceStatusChange={handleWorkspaceStatusChange}
-										/>
-									</div>
-								</div>
-							{:else if activeTab === 'files'}
-								<HermesWorkspaceStub
-									active={activeTab === 'files'}
-									{chatId}
-									{chatFiles}
-									generatedFiles={generatedWorkspaceFiles}
-									{taskIds}
-									hermesWorkspaces={$hermesWorkspacesStore?.items ?? []}
-									onAttach={handleTerminalAttach}
-									onHermesWorkspaceSwitched={handleHermesWorkspaceSwitched}
-									onWorkspaceStatusChange={handleWorkspaceStatusChange}
-								/>
+								<PyodideFileNav />
 							{:else}
 								<Controls embed={true} {models} bind:chatFiles bind:params />
 							{/if}
@@ -915,7 +382,7 @@
 		>
 			<div
 				class="absolute -left-1.5 -right-1.5 -top-0 -bottom-0 z-20 cursor-col-resize bg-transparent"
-			></div>
+			/>
 		</PaneResizer>
 	{/if}
 
@@ -923,15 +390,13 @@
 		bind:pane
 		defaultSize={0}
 		onResize={(size) => {
-			if ($showControls && pane?.isExpanded()) {
+			if ($showControls && pane.isExpanded()) {
 				if (size < minSize) pane.resize(minSize);
 				if (size < minSize) {
 					localStorage.chatControlsSize = 0;
 				} else {
 					const container = document.getElementById('chat-container');
-					if (container?.clientWidth) {
-						localStorage.chatControlsSize = Math.floor((size / 100) * container.clientWidth);
-					}
+					localStorage.chatControlsSize = Math.floor((size / 100) * container.clientWidth);
 				}
 			}
 		}}
@@ -967,149 +432,90 @@
 					{:else if $showEmbeds}
 						<Embeds overlay={dragged} />
 					{:else if $showArtifacts}
-						<Artifacts overlay={dragged} />
+						<Artifacts {history} overlay={dragged} />
 					{:else}
-						<!-- Controls + Workspace tabs -->
+						<!-- Controls + Files tabs -->
 						<div class="flex flex-col h-full min-h-0">
 							<!-- Tab bar -->
-							<HermesControlsModeHeader
-								mode={activeMode}
-								tabs={visibleTabs}
-								{activeTab}
-								inspectDisabled={inspectTabs.length === 0}
-								closeLabel={$i18n.t('Close')}
-								workLabel={$i18n.t('Work')}
-								inspectLabel={$i18n.t('Inspect')}
-								{modeDescription}
-								onSetMode={setActiveMode}
-								onSetTab={handleTabSelect}
-								onClose={handleControlsClose}
-							/>
+							<div class="flex items-center justify-between px-2 pt-2 pb-2 shrink-0">
+								<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
+									{#if showControlsTab}
+										<button
+											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+											'controls'
+												? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+												: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+											on:click={() => (activeTab = 'controls')}
+										>
+											{$i18n.t('Controls')}
+										</button>
+									{/if}
+									{#if showFilesTab}
+										<button
+											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+											'files'
+												? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+												: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+											on:click={() => (activeTab = 'files')}
+										>
+											{$i18n.t('Files')}
+										</button>
+									{/if}
+									{#if showOverviewTab}
+										<button
+											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+											'overview'
+												? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+												: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+											on:click={() => (activeTab = 'overview')}
+										>
+											{$i18n.t('Overview')}
+										</button>
+									{/if}
+								</div>
+								<button
+									class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-500 dark:text-gray-400"
+									on:click={() => showControls.set(false)}
+									aria-label={$i18n.t('Close')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 24 24"
+										fill="none"
+										stroke="currentColor"
+										stroke-width="1.5"
+										class="size-4"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+									</svg>
+								</button>
+							</div>
 
 							<div
 								class="flex-1 min-h-0 {activeTab === 'overview'
-									? 'overflow-y-auto'
+									? 'h-full'
 									: activeTab === 'controls'
 										? 'overflow-y-auto px-3 pt-1'
 										: ''}"
 							>
-								{#if showPrimaryContextSummary || showInspectContextSummary}
-									<HermesControlsModeSummary
-										mode={activeMode}
-										summary={panelContextSummary}
-										stats={panelStats}
-										on:workspace={() => openOperatorTab('files')}
-										on:session={() => openOperatorTab('session')}
-										on:profile={() => openInspectTab('profile')}
-									/>
-								{/if}
-
 								{#if activeTab === 'overview'}
-									<HermesOverviewPanel
-										active={activeTab === 'overview'}
+									<Overview
 										{history}
-										on:open={handleOpenOverviewCanvas}
-									/>
-								{:else if activeTab === 'session'}
-									<HermesSessionPanel
-										active={activeTab === 'session'}
-										{chatId}
-										{chatHermesSession}
-										{chatMeta}
-										{history}
-										{models}
-										{taskIds}
-										{chatFiles}
-										mode="context"
-									/>
-								{:else if activeTab === 'history'}
-									<HermesSessionPanel
-										active={activeTab === 'history'}
-										{chatId}
-										{chatHermesSession}
-										{chatMeta}
-										{history}
-										{models}
-										{taskIds}
-										{chatFiles}
-										mode="history"
-									/>
-								{:else if activeTab === 'profile'}
-									<HermesProfilePanel
-										active={activeTab === 'profile'}
-										{taskIds}
-										{hermesStreamActive}
-										onProfileSwitched={handleHermesProfileSwitched}
-									/>
-								{:else if activeTab === 'skills'}
-									<HermesSkillsPanel active={activeTab === 'skills'} />
-								{:else if activeTab === 'memory'}
-									<HermesMemoryPanel active={activeTab === 'memory'} />
-								{:else if activeTab === 'tasks'}
-									<HermesTasksPanel
-										active={activeTab === 'tasks'}
-										{taskIds}
-										{stopResponse}
-										generating={liveRunGenerating}
-										pendingApproval={liveRunPendingApproval}
-										activeModelLabel={liveRunActiveModelLabel}
-										activityMessage={liveRunActivityMessage}
-										statusUpdatesEnabled={liveRunStatusUpdatesEnabled}
-									/>
-								{:else if activeTab === 'todos'}
-									<HermesTodosPanel
-										active={activeTab === 'todos'}
-										{history}
-										onJumpToMessage={(message: Record<string, any>) => {
-											showMessage(message, true);
+										onNodeClick={(e) => {
+											const node = e.node;
+											if (node?.data?.message?.favorite) {
+												history.messages[node.data.message.id].favorite = true;
+											} else {
+												history.messages[node.data.message.id].favorite = null;
+											}
+											showMessage(node.data.message, true);
 										}}
+										onClose={() => showControls.set(false)}
 									/>
 								{:else if activeTab === 'files' && $selectedTerminalId}
-									<div class="flex h-full min-h-0 flex-col">
-										<HermesWorkspaceHeader
-											title={workspaceTitle}
-											subtitle={workspaceSubtitle}
-											badge={workspaceBadge}
-											metaItems={workspaceMetaItems}
-											stats={workspaceHeaderStats}
-										/>
-										<div class="flex-1 min-h-0">
-											<FileNav
-												onAttach={handleTerminalAttach}
-												onWorkspaceStatusChange={handleWorkspaceStatusChange}
-												overlay={dragged}
-											/>
-										</div>
-									</div>
+									<FileNav onAttach={handleTerminalAttach} overlay={dragged} />
 								{:else if activeTab === 'files' && codeInterpreterEnabled}
-									<div class="flex h-full min-h-0 flex-col">
-										<HermesWorkspaceHeader
-											title={workspaceTitle}
-											subtitle={workspaceSubtitle}
-											badge={workspaceBadge}
-											metaItems={workspaceMetaItems}
-											stats={workspaceHeaderStats}
-										/>
-										<div class="flex-1 min-h-0">
-											<PyodideFileNav
-												onAttach={handleTerminalAttach}
-												onWorkspaceStatusChange={handleWorkspaceStatusChange}
-												overlay={dragged}
-											/>
-										</div>
-									</div>
-								{:else if activeTab === 'files'}
-									<HermesWorkspaceStub
-										active={activeTab === 'files'}
-										{chatId}
-										{chatFiles}
-										generatedFiles={generatedWorkspaceFiles}
-										{taskIds}
-										hermesWorkspaces={$hermesWorkspacesStore?.items ?? []}
-										onAttach={handleTerminalAttach}
-										onHermesWorkspaceSwitched={handleHermesWorkspaceSwitched}
-										onWorkspaceStatusChange={handleWorkspaceStatusChange}
-									/>
+									<PyodideFileNav overlay={dragged} />
 								{:else}
 									<Controls embed={true} {models} bind:chatFiles bind:params />
 								{/if}
@@ -1121,43 +527,3 @@
 		{/if}
 	</Pane>
 {/if}
-
-<Modal
-	bind:show={showOverviewCanvas}
-	size="2xl"
-	containerClassName="p-3 sm:p-5"
-	className="overflow-hidden rounded-[1.75rem] bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm"
->
-	<div class="flex h-[min(84vh,56rem)] max-h-[84vh] min-h-0 flex-col">
-		<div
-			class="flex items-center justify-between gap-3 border-b border-gray-200/80 px-4 py-3 dark:border-gray-800/80 sm:px-5"
-		>
-			<div class="min-w-0">
-				<div class="text-sm font-medium text-gray-900 dark:text-white">{$i18n.t('Overview')}</div>
-				<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-					{$i18n.t('Open the conversation flow on a wider canvas.')}
-				</div>
-			</div>
-
-			<button
-				type="button"
-				class="rounded-lg px-2.5 py-1.5 text-sm text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-				on:click={handleCloseOverviewCanvas}
-			>
-				{$i18n.t('Close')}
-			</button>
-		</div>
-
-		<div class="min-h-0 flex-1 bg-gray-50/60 p-3 dark:bg-gray-950/40 sm:p-4">
-			<div
-				class="h-full min-h-0 overflow-hidden rounded-2xl border border-gray-100/80 bg-white/90 dark:border-gray-800/80 dark:bg-gray-900/55"
-			>
-				<Overview
-					{history}
-					onNodeClick={handleOverviewNodeClick}
-					onClose={handleCloseOverviewCanvas}
-				/>
-			</div>
-		</div>
-	</div>
-</Modal>

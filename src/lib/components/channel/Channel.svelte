@@ -10,7 +10,6 @@
 		chatId,
 		channels,
 		channelId as _channelId,
-		WEBUI_NAME,
 		showSidebar,
 		socket,
 		user
@@ -289,10 +288,10 @@
 					} else {
 						return e.name;
 					}
-				}, '')} • {$WEBUI_NAME}</title
+				}, '')} • Open WebUI</title
 		>
 	{:else}
-		<title>#{channel?.name ?? 'Channel'} • {$WEBUI_NAME}</title>
+		<title>#{channel?.name ?? 'Channel'} • Open WebUI</title>
 	{/if}
 </svelte:head>
 

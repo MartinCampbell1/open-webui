@@ -30,7 +30,6 @@
 	const i18n = getContext('i18n');
 
 	export let files = [];
-	export let hermesMode = false;
 
 	export let selectedModels: string[] = [];
 	export let fileUploadCapableModels: string[] = [];
@@ -52,14 +51,11 @@
 
 	let fileUploadEnabled = true;
 	$: fileUploadEnabled =
-		(hermesMode || fileUploadCapableModels.length === selectedModels.length) &&
+		fileUploadCapableModels.length === selectedModels.length &&
 		($user?.role === 'admin' || $user?.permissions?.chat?.file_upload);
 
 	let webUploadEnabled = true;
 	$: webUploadEnabled = $user?.role === 'admin' || ($user?.permissions?.chat?.web_upload ?? true);
-	$: if (hermesMode && ['notes', 'knowledge', 'chats'].includes(tab)) {
-		tab = '';
-	}
 
 	$: if (!fileUploadEnabled && files.length > 0) {
 		files = [];
@@ -130,8 +126,7 @@
 			{#if tab === ''}
 				<div in:fly={{ x: -20, duration: 150 }}>
 					<Tooltip
-						content={!hermesMode &&
-						fileUploadCapableModels.length !== selectedModels.length
+						content={fileUploadCapableModels.length !== selectedModels.length
 							? $i18n.t('Model(s) do not support file upload')
 							: !fileUploadEnabled
 								? $i18n.t('You do not have permission to upload files.')
@@ -156,8 +151,7 @@
 					</Tooltip>
 
 					<Tooltip
-						content={!hermesMode &&
-						fileUploadCapableModels.length !== selectedModels.length
+						content={fileUploadCapableModels.length !== selectedModels.length
 							? $i18n.t('Model(s) do not support file upload')
 							: !fileUploadEnabled
 								? $i18n.t('You do not have permission to upload files.')
@@ -210,10 +204,9 @@
 						</button>
 					</Tooltip>
 
-					{#if !hermesMode && ($config?.features?.enable_notes ?? false)}
+					{#if $config?.features?.enable_notes ?? false}
 						<Tooltip
-							content={!hermesMode &&
-							fileUploadCapableModels.length !== selectedModels.length
+							content={fileUploadCapableModels.length !== selectedModels.length
 								? $i18n.t('Model(s) do not support file upload')
 								: !fileUploadEnabled
 									? $i18n.t('You do not have permission to upload files.')
@@ -243,69 +236,65 @@
 						</Tooltip>
 					{/if}
 
-					{#if !hermesMode}
-						<Tooltip
-							content={!hermesMode &&
-							fileUploadCapableModels.length !== selectedModels.length
-								? $i18n.t('Model(s) do not support file upload')
-								: !fileUploadEnabled
-									? $i18n.t('You do not have permission to upload files.')
-									: ''}
-							className="w-full"
+					<Tooltip
+						content={fileUploadCapableModels.length !== selectedModels.length
+							? $i18n.t('Model(s) do not support file upload')
+							: !fileUploadEnabled
+								? $i18n.t('You do not have permission to upload files.')
+								: ''}
+						className="w-full"
+					>
+						<button
+							class="flex gap-2 w-full items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl {!fileUploadEnabled
+								? 'opacity-50'
+								: ''}"
+							on:click={() => {
+								tab = 'knowledge';
+							}}
 						>
-							<button
-								class="flex gap-2 w-full items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl {!fileUploadEnabled
-									? 'opacity-50'
-									: ''}"
-								on:click={() => {
-									tab = 'knowledge';
-								}}
-							>
-								<Database />
+							<Database />
 
-								<div class="flex items-center w-full justify-between">
-									<div class=" line-clamp-1">
-										{$i18n.t('Attach Knowledge')}
-									</div>
-
-									<div class="text-gray-500">
-										<ChevronRight />
-									</div>
+							<div class="flex items-center w-full justify-between">
+								<div class=" line-clamp-1">
+									{$i18n.t('Attach Knowledge')}
 								</div>
-							</button>
-						</Tooltip>
 
-						<Tooltip
-							content={!hermesMode &&
-							fileUploadCapableModels.length !== selectedModels.length
-								? $i18n.t('Model(s) do not support file upload')
-								: !fileUploadEnabled
-									? $i18n.t('You do not have permission to upload files.')
-									: ''}
-							className="w-full"
+								<div class="text-gray-500">
+									<ChevronRight />
+								</div>
+							</div>
+						</button>
+					</Tooltip>
+
+					<Tooltip
+						content={fileUploadCapableModels.length !== selectedModels.length
+							? $i18n.t('Model(s) do not support file upload')
+							: !fileUploadEnabled
+								? $i18n.t('You do not have permission to upload files.')
+								: ''}
+						className="w-full"
+					>
+						<button
+							class="flex gap-2 w-full items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl {!fileUploadEnabled
+								? 'opacity-50'
+								: ''}"
+							on:click={() => {
+								tab = 'chats';
+							}}
 						>
-							<button
-								class="flex gap-2 w-full items-center px-3 py-1.5 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl {!fileUploadEnabled
-									? 'opacity-50'
-									: ''}"
-								on:click={() => {
-									tab = 'chats';
-								}}
-							>
-								<ClockRotateRight />
+							<ClockRotateRight />
 
-								<div class="flex items-center w-full justify-between">
-									<div class=" line-clamp-1">
-										{$i18n.t('Reference Chats')}
-									</div>
-
-									<div class="text-gray-500">
-										<ChevronRight />
-									</div>
+							<div class="flex items-center w-full justify-between">
+								<div class=" line-clamp-1">
+									{$i18n.t('Reference Chats')}
 								</div>
-							</button>
-						</Tooltip>
-					{/if}
+
+								<div class="text-gray-500">
+									<ChevronRight />
+								</div>
+							</div>
+						</button>
+					</Tooltip>
 
 					{#if fileUploadEnabled}
 						{#if $config?.features?.enable_google_drive_integration}

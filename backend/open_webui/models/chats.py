@@ -167,8 +167,6 @@ class ChatTitleIdResponse(BaseModel):
     title: str
     updated_at: int
     created_at: int
-    meta: dict = {}
-    session_summary: Optional[dict] = None
 
 
 class SharedChatResponse(BaseModel):
@@ -177,78 +175,11 @@ class SharedChatResponse(BaseModel):
     share_id: Optional[str] = None
     updated_at: int
     created_at: int
-    meta: dict = {}
-    session_summary: Optional[dict] = None
 
 
 class ChatListResponse(BaseModel):
     items: list[ChatModel]
     total: int
-
-
-def get_active_branch_messages(chat_payload: Optional[dict]) -> list[dict]:
-    if not isinstance(chat_payload, dict):
-        return []
-
-    history = chat_payload.get('history')
-    if isinstance(history, dict):
-        messages = history.get('messages')
-        current_id = history.get('currentId')
-
-        if isinstance(messages, dict) and current_id is not None:
-            branch_messages = []
-
-            while current_id is not None:
-                message = messages.get(current_id)
-                if not isinstance(message, dict):
-                    break
-
-                branch_messages.append(message)
-                current_id = message.get('parentId')
-
-            return list(reversed(branch_messages))
-
-    raw_messages = chat_payload.get('messages')
-    return raw_messages if isinstance(raw_messages, list) else []
-
-
-def build_chat_session_summary(chat_payload: Optional[dict]) -> Optional[dict]:
-    assistant_messages = [
-        message
-        for message in get_active_branch_messages(chat_payload)
-        if isinstance(message, dict) and message.get('role') == 'assistant'
-    ]
-
-    if len(assistant_messages) == 0:
-        return None
-
-    latest_assistant_model = next(
-        (message.get('model') for message in reversed(assistant_messages) if message.get('model')),
-        None,
-    )
-    operational_turn_count = sum(
-        1
-        for message in assistant_messages
-        if message.get('hermesApproval')
-        or len(message.get('statusHistory') or []) > 0
-        or len(message.get('code_executions') or []) > 0
-    )
-
-    return {
-        'latest_assistant_model': latest_assistant_model,
-        'assistant_reply_count': len(assistant_messages),
-        'operational_turn_count': operational_turn_count,
-    }
-
-
-def build_chat_list_meta(meta_payload: Optional[dict], chat_payload: Optional[dict]) -> dict:
-    normalized_meta = dict(meta_payload) if isinstance(meta_payload, dict) else {}
-
-    hermes_session = chat_payload.get('hermesSession') if isinstance(chat_payload, dict) else None
-    if isinstance(hermes_session, dict) and not isinstance(normalized_meta.get('hermes'), dict):
-        normalized_meta['hermes'] = hermes_session
-
-    return normalized_meta
 
 
 class ChatUsageStatsResponse(BaseModel):
@@ -750,7 +681,7 @@ class ChatTable:
             else:
                 query = query.order_by(Chat.updated_at.desc(), Chat.id)
 
-            query = query.with_entities(Chat.id, Chat.title, Chat.updated_at, Chat.created_at, Chat.meta, Chat.chat)
+            query = query.with_entities(Chat.id, Chat.title, Chat.updated_at, Chat.created_at)
 
             if skip:
                 query = query.offset(skip)
@@ -765,8 +696,6 @@ class ChatTable:
                         'title': chat[1],
                         'updated_at': chat[2],
                         'created_at': chat[3],
-                        'meta': build_chat_list_meta(chat[4], chat[5]),
-                        'session_summary': build_chat_session_summary(chat[5]),
                     }
                 )
                 for chat in all_chats
@@ -812,8 +741,6 @@ class ChatTable:
                 Chat.share_id,
                 Chat.updated_at,
                 Chat.created_at,
-                Chat.meta,
-                Chat.chat,
             )
 
             if skip:
@@ -830,8 +757,6 @@ class ChatTable:
                         'share_id': chat[2],
                         'updated_at': chat[3],
                         'created_at': chat[4],
-                        'meta': build_chat_list_meta(chat[5], chat[6]),
-                        'session_summary': build_chat_session_summary(chat[6]),
                     }
                 )
                 for chat in all_chats
@@ -900,7 +825,7 @@ class ChatTable:
                 query = query.filter_by(archived=False)
 
             query = query.order_by(Chat.updated_at.desc(), Chat.id).with_entities(
-                Chat.id, Chat.title, Chat.updated_at, Chat.created_at, Chat.meta, Chat.chat
+                Chat.id, Chat.title, Chat.updated_at, Chat.created_at
             )
 
             if skip:
@@ -918,8 +843,6 @@ class ChatTable:
                         'title': chat[1],
                         'updated_at': chat[2],
                         'created_at': chat[3],
-                        'meta': build_chat_list_meta(chat[4], chat[5]),
-                        'session_summary': build_chat_session_summary(chat[5]),
                     }
                 )
                 for chat in all_chats
@@ -1063,7 +986,7 @@ class ChatTable:
                 db.query(Chat)
                 .filter_by(user_id=user_id, pinned=True, archived=False)
                 .order_by(Chat.updated_at.desc())
-                .with_entities(Chat.id, Chat.title, Chat.updated_at, Chat.created_at, Chat.meta, Chat.chat)
+                .with_entities(Chat.id, Chat.title, Chat.updated_at, Chat.created_at)
             )
             return [
                 ChatTitleIdResponse.model_validate(
@@ -1072,8 +995,6 @@ class ChatTable:
                         'title': chat[1],
                         'updated_at': chat[2],
                         'created_at': chat[3],
-                        'meta': build_chat_list_meta(chat[4], chat[5]),
-                        'session_summary': build_chat_session_summary(chat[5]),
                     }
                 )
                 for chat in all_chats

@@ -27,11 +27,7 @@
 		selectedFolder,
 		WEBUI_NAME,
 		sidebarWidth,
-		activeChatIds,
-		chatControlsOpenTarget,
-		hermesRecentSessions,
-		hermesSessionsByChatId,
-		showControls
+		activeChatIds
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -48,13 +44,11 @@
 	} from '$lib/apis/chats';
 	import { createNewFolder, getFolders, updateFolderParentIdById } from '$lib/apis/folders';
 	import { checkActiveChats } from '$lib/apis/tasks';
-	import { importHermesSession } from '$lib/apis/hermes';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import ArchivedChatsModal from './ArchivedChatsModal.svelte';
 	import UserMenu from './Sidebar/UserMenu.svelte';
 	import ChatItem from './Sidebar/ChatItem.svelte';
-	import HermesSessionItem from './Sidebar/HermesSessionItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
 	import Folder from '../common/Folder.svelte';
@@ -72,15 +66,6 @@
 	import Note from '../icons/Note.svelte';
 	import { slide } from 'svelte/transition';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
-	import {
-		buildHermesAwareChatList,
-		countHermesSessionsByScope,
-		filterHermesSessions,
-		getRecentVisibleHermesSessions,
-		refreshHermesSessionStores,
-		type HermesSessionListItem,
-		type HermesSessionScope
-	} from '$lib/utils/hermesSessions';
 
 	const BREAKPOINT = 768;
 
@@ -97,16 +82,6 @@
 	let allChatsLoaded = false;
 
 	let showCreateFolderModal = false;
-	let hermesSidebarSessionsLoading = false;
-	let hermesSidebarSessionsRefreshQueued = false;
-	let hermesSidebarSessionActionId: string | null = null;
-	let totalVisibleHermesSidebarSessions = 0;
-	let filteredHermesSidebarSessionCount = 0;
-	let recentHermesSidebarSessions: HermesSessionListItem[] = [];
-	let showHermesSidebarSessions = true;
-	let sidebarHermesSessionScope: HermesSessionScope = 'all';
-	let orderedPinnedChats = [];
-	let orderedChats = [];
 
 	let pinnedModels = [];
 
@@ -163,32 +138,6 @@
 				folders[folder.parent_id].childrenIds.sort((a, b) => {
 					return folders[b].updated_at - folders[a].updated_at;
 				});
-			}
-		}
-	};
-
-	const loadHermesSidebarSessions = async () => {
-		if (!$showSidebar || !localStorage?.token) {
-			return;
-		}
-
-		if (hermesSidebarSessionsLoading) {
-			hermesSidebarSessionsRefreshQueued = true;
-			return;
-		}
-
-		hermesSidebarSessionsLoading = true;
-
-		try {
-			await refreshHermesSessionStores(localStorage.token);
-		} catch (error) {
-			console.debug('Failed to refresh Hermes sidebar sessions:', error);
-		} finally {
-			hermesSidebarSessionsLoading = false;
-
-			if (hermesSidebarSessionsRefreshQueued) {
-				hermesSidebarSessionsRefreshQueued = false;
-				loadHermesSidebarSessions();
 			}
 		}
 	};
@@ -285,52 +234,8 @@
 			})()
 		]);
 
-		await loadHermesSidebarSessions();
-
 		// Enable pagination
 		scrollPaginationEnabled.set(true);
-	};
-
-	const openHermesSessionPanel = async () => {
-		chatControlsOpenTarget.set('sessions');
-		await showControls.set(true);
-	};
-
-	const handleSidebarLogoError = (event: Event) => {
-		const image = event.currentTarget as HTMLImageElement | null;
-
-		if (!image || image.dataset.fallbackLoaded === 'true') {
-			return;
-		}
-
-		image.dataset.fallbackLoaded = 'true';
-		image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
-	};
-
-	const openOrImportHermesSidebarSession = async (session: HermesSessionListItem) => {
-		if (!session?.session_id || hermesSidebarSessionActionId) {
-			return;
-		}
-
-		hermesSidebarSessionActionId = session.imported_chat_id || session.session_id;
-
-		try {
-			const res = await importHermesSession(localStorage.token, session.session_id).catch(
-				(error) => {
-					toast.error(`${error}`);
-					return null;
-				}
-			);
-
-			if (res?.chat?.id) {
-				await refreshHermesSessionStores(localStorage.token);
-				await goto(`/c/${res.chat.id}`);
-			}
-		} catch (error) {
-			toast.error(`${error}`);
-		} finally {
-			hermesSidebarSessionActionId = null;
-		}
 	};
 
 	const loadMoreChats = async () => {
@@ -350,69 +255,6 @@
 
 		chatListLoading = false;
 	};
-
-	$: currentHermesSidebarSessionId = $chatId
-		? ($hermesSessionsByChatId[$chatId]?.session_id ?? null)
-		: null;
-	$: allHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
-		limit: Number.MAX_SAFE_INTEGER,
-		currentChatId: $chatId,
-		currentSessionId: currentHermesSidebarSessionId,
-		includeImported: true,
-		includeAuxiliary: false
-	});
-	$: sidebarHermesSessionCounts = countHermesSessionsByScope(allHermesSidebarSessions, {
-		currentChatId: $chatId,
-		currentSessionId: currentHermesSidebarSessionId
-	});
-	$: sidebarHermesSessionFilters = [
-		{ id: 'all', label: $i18n.t('All'), count: sidebarHermesSessionCounts.all },
-		...(sidebarHermesSessionCounts.current > 0
-			? [
-					{
-						id: 'current',
-						label: $i18n.t('Current'),
-						count: sidebarHermesSessionCounts.current
-					}
-				]
-			: []),
-		...(sidebarHermesSessionCounts.imported > 0
-			? [
-					{
-						id: 'imported',
-						label: $i18n.t('Imported'),
-						count: sidebarHermesSessionCounts.imported
-					}
-				]
-			: [])
-	] as { id: HermesSessionScope; label: string; count: number }[];
-	$: filteredHermesSidebarSessions = filterHermesSessions(allHermesSidebarSessions, {
-		scope: sidebarHermesSessionScope,
-		currentChatId: $chatId,
-		currentSessionId: currentHermesSidebarSessionId
-	});
-	$: filteredHermesSidebarSessionCount = filteredHermesSidebarSessions.length;
-	$: recentHermesSidebarSessions = filteredHermesSidebarSessions.slice(0, 6);
-	$: totalVisibleHermesSidebarSessions = allHermesSidebarSessions.length;
-	$: showHermesSidebarSection = showSidebarWorkspace || totalVisibleHermesSidebarSessions > 0;
-
-	$: orderedPinnedChats = buildHermesAwareChatList($pinnedChats ?? [], $hermesSessionsByChatId);
-	$: orderedChats = buildHermesAwareChatList($chats ?? [], $hermesSessionsByChatId);
-	$: showSidebarNotes =
-		($config?.features?.enable_notes ?? false) &&
-		($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true));
-	$: showSidebarWorkspace =
-		$user?.role === 'admin' ||
-		$user?.permissions?.workspace?.models ||
-		$user?.permissions?.workspace?.knowledge ||
-		$user?.permissions?.workspace?.prompts ||
-		$user?.permissions?.workspace?.tools;
-	$: showSidebarModels =
-		($models ?? []).length > 0 &&
-		(($settings?.pinnedModels ?? []).length > 0 || $config?.default_pinned_models);
-	$: showSidebarChannels =
-		$config?.features?.enable_channels &&
-		($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true));
 
 	const importChatHandler = async (items, pinned = false, folderId = null) => {
 		console.log('importChatHandler', items, pinned, folderId);
@@ -536,15 +378,7 @@
 		}
 	};
 
-	const onFocus = () => {
-		loadHermesSidebarSessions();
-	};
-
-	const onVisibilityChange = () => {
-		if (document.visibilityState === 'visible') {
-			loadHermesSidebarSessions();
-		}
-	};
+	const onFocus = () => {};
 
 	const onBlur = () => {
 		shiftKey = false;
@@ -668,7 +502,6 @@
 		window.addEventListener('touchend', onTouchEnd);
 
 		window.addEventListener('focus', onFocus);
-		document.addEventListener('visibilitychange', onVisibilityChange);
 		window.addEventListener('blur', onBlur);
 
 		const dropZone = document.getElementById('sidebar');
@@ -691,7 +524,6 @@
 			window.removeEventListener('touchend', onTouchEnd);
 
 			window.removeEventListener('focus', onFocus);
-			document.removeEventListener('visibilitychange', onVisibilityChange);
 			window.removeEventListener('blur', onBlur);
 
 			if (dropZone) {
@@ -881,10 +713,9 @@
 					>
 						<div class=" self-center flex items-center justify-center size-9">
 							<img
-								src="/favicon.png"
+								src="{WEBUI_BASE_URL}/static/favicon.png"
 								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden"
 								alt=""
-								on:error={handleSidebarLogoError}
 							/>
 
 							<Sidebar className="size-5 hidden group-hover:flex" />
@@ -936,7 +767,7 @@
 					</Tooltip>
 				</div>
 
-				{#if showSidebarNotes}
+				{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))}
 					<div class="">
 						<Tooltip content={$i18n.t('Notes')} placement="right">
 							<a
@@ -960,7 +791,7 @@
 					</div>
 				{/if}
 
-				{#if showSidebarWorkspace}
+				{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools}
 					<div class="">
 						<Tooltip content={$i18n.t('Workspace')} placement="right">
 							<a
@@ -1077,10 +908,9 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="/favicon.png"
+						src="{WEBUI_BASE_URL}/static/favicon.png"
 						class="sidebar-new-chat-icon size-6 rounded-full"
 						alt=""
-						on:error={handleSidebarLogoError}
 					/>
 				</a>
 
@@ -1171,7 +1001,7 @@
 						</button>
 					</div>
 
-					{#if showSidebarNotes}
+					{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))}
 						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 							<a
 								id="sidebar-notes-button"
@@ -1191,145 +1021,43 @@
 							</a>
 						</div>
 					{/if}
-				</div>
 
-				{#if showHermesSidebarSection}
-					<div class="px-2 pt-1.5">
-						<div class="px-1.5 pb-1.5">
-							<div
-								class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+					{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools}
+						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
+							<a
+								id="sidebar-workspace-button"
+								class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
+								href="/workspace"
+								on:click={itemClickHandler}
+								draggable="false"
+								aria-label={$i18n.t('Workspace')}
 							>
-								{$i18n.t('Hermes')}
-							</div>
-						</div>
-
-						{#if showSidebarWorkspace}
-							<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
-								<a
-									id="sidebar-workspace-button"
-									class="grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition"
-									href="/workspace"
-									on:click={itemClickHandler}
-									draggable="false"
-									aria-label={$i18n.t('Workspace')}
-								>
-									<div class="self-center">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke-width="2"
-											stroke="currentColor"
-											class="size-4.5"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v2.25A2.25 2.25 0 0 0 6 10.5Zm0 9.75h2.25A2.25 2.25 0 0 0 10.5 18v-2.25a2.25 2.25 0 0 0-2.25-2.25H6a2.25 2.25 0 0 0-2.25 2.25V18A2.25 2.25 0 0 0 6 20.25Zm9.75-9.75H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-2.25A2.25 2.25 0 0 0 13.5 6v2.25a2.25 2.25 0 0 0 2.25 2.25Z"
-											/>
-										</svg>
-									</div>
-
-									<div class="flex self-center translate-y-[0.5px]">
-										<div class=" self-center text-sm font-primary">{$i18n.t('Workspace')}</div>
-									</div>
-								</a>
-							</div>
-						{/if}
-
-						{#if totalVisibleHermesSidebarSessions > 0}
-							<div class="pt-1">
-								<div class="flex items-center justify-between gap-3 px-1.5">
-									<button
-										type="button"
-										class="min-w-0 flex flex-1 items-center gap-2 text-left"
-										on:click={() => {
-											showHermesSidebarSessions = !showHermesSidebarSessions;
-										}}
+								<div class="self-center">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke-width="2"
+										stroke="currentColor"
+										class="size-4.5"
 									>
-										<div
-											class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-										>
-											{$i18n.t('Hermes sessions')}
-										</div>
-										<div
-											class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300"
-										>
-											{totalVisibleHermesSidebarSessions}
-										</div>
-									</button>
-
-									<button
-										type="button"
-										class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-										on:click={openHermesSessionPanel}
-										title={$i18n.t('Open Hermes session history')}
-										aria-label={$i18n.t('Open Hermes session history')}
-									>
-										{$i18n.t('Open session history')}
-									</button>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H6A2.25 2.25 0 0 0 3.75 6v2.25A2.25 2.25 0 0 0 6 10.5Zm0 9.75h2.25A2.25 2.25 0 0 0 10.5 18v-2.25a2.25 2.25 0 0 0-2.25-2.25H6a2.25 2.25 0 0 0-2.25 2.25V18A2.25 2.25 0 0 0 6 20.25Zm9.75-9.75H18a2.25 2.25 0 0 0 2.25-2.25V6A2.25 2.25 0 0 0 18 3.75h-2.25A2.25 2.25 0 0 0 13.5 6v2.25a2.25 2.25 0 0 0 2.25 2.25Z"
+										/>
+									</svg>
 								</div>
 
-								{#if showHermesSidebarSessions}
-									<div class="mt-1.5 px-1.5">
-										<div class="min-w-0 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-											{$i18n.t(
-												'Imported Hermes sessions stay linked to chats. Open or import one from session history.'
-											)}
-										</div>
-									</div>
+								<div class="flex self-center translate-y-[0.5px]">
+									<div class=" self-center text-sm font-primary">{$i18n.t('Workspace')}</div>
+								</div>
+							</a>
+						</div>
+					{/if}
+				</div>
 
-									{#if sidebarHermesSessionFilters.length > 1}
-										<div class="mt-2 flex flex-wrap gap-1.5 px-1.5">
-											{#each sidebarHermesSessionFilters as filter}
-												<button
-													type="button"
-													class="{sidebarHermesSessionScope === filter.id
-														? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-														: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300'} rounded-full px-2.5 py-1 text-[11px] font-medium transition hover:bg-gray-200 dark:hover:bg-gray-700"
-													on:click={() => {
-														sidebarHermesSessionScope = filter.id;
-													}}
-												>
-													{filter.label} · {filter.count}
-												</button>
-											{/each}
-										</div>
-									{/if}
-
-									{#if recentHermesSidebarSessions.length > 0}
-										<div class="mt-2 space-y-0.5">
-											{#each recentHermesSidebarSessions as session (session.session_id)}
-												<HermesSessionItem
-													{session}
-													showPreview={false}
-													busy={hermesSidebarSessionActionId === session.session_id ||
-														(Boolean(session.imported_chat_id) &&
-															hermesSidebarSessionActionId === session.imported_chat_id)}
-													className="px-1.5"
-													on:open={(e) => {
-														openOrImportHermesSidebarSession(e.detail);
-													}}
-													on:import={(e) => {
-														openOrImportHermesSidebarSession(e.detail);
-													}}
-												/>
-											{/each}
-										</div>
-									{:else}
-										<div class="px-1.5 py-3 text-[11px] text-gray-500 dark:text-gray-400">
-											{#if filteredHermesSidebarSessionCount === 0}
-												{$i18n.t('No Hermes sessions match the current search or filters.')}
-											{/if}
-										</div>
-									{/if}
-								{/if}
-							</div>
-						{/if}
-					</div>
-				{/if}
-
-				{#if showSidebarModels}
+				{#if ($models ?? []).length > 0 && (($settings?.pinnedModels ?? []).length > 0 || $config?.default_pinned_models)}
 					<Folder
 						id="sidebar-models"
 						bind:open={showPinnedModels}
@@ -1342,7 +1070,7 @@
 					</Folder>
 				{/if}
 
-				{#if showSidebarChannels}
+				{#if $config?.features?.enable_channels && ($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true))}
 					<Folder
 						id="sidebar-channels"
 						bind:open={showChannels}
@@ -1434,7 +1162,7 @@
 				<Folder
 					id="sidebar-chats"
 					className="px-2 mt-0.5"
-					name={$i18n.t('Recent chats')}
+					name={$i18n.t('Chats')}
 					chevron={false}
 					on:change={async (e) => {
 						selectedFolder.set(null);
@@ -1549,21 +1277,17 @@
 											}
 										}
 									}}
-									name={$i18n.t('Pinned chats')}
+									name={$i18n.t('Pinned')}
 								>
 									<div
 										class="ml-3 pl-1 mt-[1px] flex flex-col overflow-y-auto scrollbar-hidden border-s border-gray-100 dark:border-gray-900 text-gray-900 dark:text-gray-200"
 									>
-										{#each orderedPinnedChats as chat, idx (`pinned-chat-${chat?.id ?? idx}`)}
+										{#each $pinnedChats as chat, idx (`pinned-chat-${chat?.id ?? idx}`)}
 											<ChatItem
 												className=""
 												id={chat.id}
 												title={chat.title}
 												createdAt={chat.created_at}
-												updatedAt={chat.updated_at}
-												activityUpdatedAt={chat.effective_updated_at}
-												meta={chat.meta}
-												sessionSummary={chat.session_summary}
 												{shiftKey}
 												selected={selectedChatId === chat.id}
 												on:select={() => {
@@ -1589,9 +1313,9 @@
 
 					<div class=" flex-1 flex flex-col overflow-y-auto scrollbar-hidden">
 						<div class="pt-1.5">
-							{#if orderedChats}
-								{#each orderedChats as chat, idx (`chat-${chat?.id ?? idx}`)}
-									{#if idx === 0 || (idx > 0 && chat.time_range !== orderedChats[idx - 1].time_range)}
+							{#if $chats}
+								{#each $chats as chat, idx (`chat-${chat?.id ?? idx}`)}
+									{#if idx === 0 || (idx > 0 && chat.time_range !== $chats[idx - 1].time_range)}
 										<div
 											class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx ===
 											0
@@ -1625,10 +1349,6 @@
 										id={chat.id}
 										title={chat.title}
 										createdAt={chat.created_at}
-										updatedAt={chat.updated_at}
-										activityUpdatedAt={chat.effective_updated_at}
-										meta={chat.meta}
-										sessionSummary={chat.session_summary}
 										{shiftKey}
 										selected={selectedChatId === chat.id}
 										on:select={() => {

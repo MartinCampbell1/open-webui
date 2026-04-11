@@ -22,7 +22,6 @@
 		chatId,
 		chatTitle as _chatTitle,
 		chats,
-		hermesSessionsByChatId,
 		mobile,
 		pinnedChats,
 		showSidebar,
@@ -45,22 +44,12 @@
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { generateTitle } from '$lib/apis';
-	import { createMessagesList } from '$lib/utils';
-	import {
-		buildHermesSessionSummaryFromMessages,
-		formatHermesChatSidebarMetaLine,
-		getResolvedHermesSessionContext
-	} from '$lib/utils/hermesSessions';
 
 	export let className = '';
 
 	export let id;
 	export let title;
 	export let createdAt: number | null = null;
-	export let updatedAt: number | null = null;
-	export let activityUpdatedAt: number | null = null;
-	export let meta: Record<string, any> | null = null;
-	export let sessionSummary: Record<string, any> | null = null;
 
 	export let selected = false;
 	export let shiftKey = false;
@@ -87,77 +76,16 @@
 	}
 
 	let chat = null;
-	let chatLoading = false;
 
 	let mouseOver = false;
 
-	$: isRunning = $activeChatIds.has(id);
-	$: isCurrentChat = id === $chatId;
-	$: activityTimestamp = activityUpdatedAt ?? updatedAt ?? createdAt;
-
-	const getHistoryMessages = (chat) => {
-		const history = chat?.chat?.history;
-		if (history?.messages && typeof history.messages === 'object') {
-			if (history.currentId !== null && history.currentId !== undefined) {
-				return createMessagesList(history, history.currentId);
-			}
-
-			return Object.values(history.messages);
-		}
-
-		return Array.isArray(chat?.chat?.messages) ? chat.chat.messages : [];
-	};
-
-	$: sessionMessages = getHistoryMessages(chat);
-	$: hermesSidebarSession = $hermesSessionsByChatId[id] ?? null;
-	$: hermesSessionMeta = getResolvedHermesSessionContext({
-		session: hermesSidebarSession,
-		meta: meta ?? chat?.meta ?? null,
-		chatPayload: chat?.chat ?? null
-	});
-	$: hermesStateBadges = [
-		isRunning
-			? { label: $i18n.t('Running'), kind: 'running' }
-			: isCurrentChat
-				? { label: $i18n.t('Current'), kind: 'current' }
-				: null,
-		hermesSidebarSession?.imported_chat_id ? { label: $i18n.t('Imported'), kind: 'imported' } : null
-	].filter(Boolean);
-	$: fallbackSessionSummary = buildHermesSessionSummaryFromMessages(sessionMessages);
-	$: resolvedSessionSummary = sessionSummary ?? fallbackSessionSummary;
-	$: sessionMetaLine = formatHermesChatSidebarMetaLine({
-		summary: resolvedSessionSummary,
-		session: hermesSidebarSession,
-		translate: $i18n.t
-	});
-	$: showHermesMetaDetails = isCurrentChat || isRunning || selected || mouseOver;
-	$: showHermesMetaLine = !!sessionMetaLine || showHermesMetaDetails;
-
-	const loadChat = async (force = false) => {
-		if ((!force && chat) || chatLoading) {
-			return;
-		}
-
-		chatLoading = true;
-
-		try {
-			const loadedChat = await getChatById(localStorage.token, id);
-			if (loadedChat) {
-				chat = loadedChat;
-			}
-		} finally {
-			chatLoading = false;
+	const loadChat = async () => {
+		if (!chat) {
+			draggable = false;
+			chat = await getChatById(localStorage.token, id);
+			draggable = true;
 		}
 	};
-
-	$: if (
-		(isCurrentChat || isRunning || selected) &&
-		(!chat || chat?.updated_at !== updatedAt) &&
-		(!sessionSummary || !hermesSessionMeta) &&
-		!chatLoading
-	) {
-		loadChat(!!chat && chat?.updated_at !== updatedAt);
-	}
 
 	let showShareChatModal = false;
 	let confirmEdit = false;
@@ -490,8 +418,8 @@
 	{:else}
 		<a
 			id="sidebar-chat-item"
-			class="focus-ring w-full touch-manipulation flex justify-between rounded-xl px-[11px] py-[7px] {id ===
-				$chatId || confirmEdit
+			class=" w-full flex justify-between rounded-xl px-[11px] py-[6px] {id === $chatId ||
+			confirmEdit
 				? 'bg-gray-100 dark:bg-gray-900 selected'
 				: selected
 					? 'bg-gray-100 dark:bg-gray-950 selected'
@@ -521,57 +449,28 @@
 			on:mouseleave={(e) => {
 				mouseOver = false;
 			}}
-			on:focus={() => {
-				mouseOver = true;
-			}}
-			on:blur={() => {
-				mouseOver = false;
-			}}
+			on:focus={(e) => {}}
 			draggable="false"
 		>
-			<div class="flex flex-1 min-w-0 pr-5">
-				<div class="flex min-w-0 flex-col">
-					<div
-						dir="auto"
-						class="text-left overflow-hidden w-full truncate leading-[1.15rem] {isCurrentChat ||
-						isRunning
-							? 'font-medium text-gray-900 dark:text-gray-100'
-							: ''}"
-					>
-						{title}
-					</div>
+			<!-- Loading spinner for active chat (left side) -->
+			{#if $activeChatIds.has(id)}
+				<div class="shrink-0 self-center pr-2">
+					<Spinner className="size-3" />
+				</div>
+			{/if}
 
-					{#if showHermesMetaLine}
-						<div
-							class="mt-0.5 flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap text-[10px] leading-none text-gray-500 dark:text-gray-400"
-						>
-							{#if showHermesMetaDetails}
-								{#each hermesStateBadges as badge}
-									<div
-										class="inline-flex items-center gap-1 rounded-full bg-white/80 px-1.5 py-0.5 font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400"
-									>
-										{#if badge.kind === 'running'}
-											<Spinner className="size-2.5" />
-										{:else if badge.kind === 'current'}
-											<span class="inline-flex size-1.5 rounded-full bg-gray-400 dark:bg-gray-500"
-											></span>
-										{/if}
-										<span>{badge.label}</span>
-									</div>
-								{/each}
-
-								{#if activityTimestamp}
-									<span class="shrink-0">{formatTimeAgo(activityTimestamp)}</span>
-								{/if}
-							{/if}
-
-							{#if sessionMetaLine}
-								<span class="min-w-0 truncate">{sessionMetaLine}</span>
-							{/if}
-						</div>
-					{/if}
+			<div class="flex self-center flex-1 w-full min-w-0">
+				<div dir="auto" class="text-left self-center overflow-hidden w-full h-[20px] truncate">
+					{title}
 				</div>
 			</div>
+
+			<!-- Time ago indicator -->
+			{#if createdAt && !mouseOver}
+				<div class="shrink-0 self-center text-[10px] text-gray-400 dark:text-gray-500 pl-2">
+					{formatTimeAgo(createdAt)}
+				</div>
+			{/if}
 		</a>
 	{/if}
 
@@ -583,7 +482,7 @@
 			? 'from-gray-100 dark:from-gray-900 selected'
 			: selected
 				? 'from-gray-100 dark:from-gray-950 selected'
-				: 'invisible group-hover:visible group-focus-within:visible from-gray-100 dark:from-gray-950'}
+				: 'invisible group-hover:visible from-gray-100 dark:from-gray-950'}
             absolute {className === 'pr-2'
 			? 'right-[8px]'
 			: 'right-1'} top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-linear-to-l from-80%
@@ -602,8 +501,7 @@
 			>
 				<Tooltip content={$i18n.t('Generate')}>
 					<button
-						type="button"
-						class="focus-ring touch-target-compact self-center rounded-full text-gray-500 transition disabled:cursor-not-allowed dark:text-gray-400 dark:hover:text-white"
+						class=" self-center dark:hover:text-white transition disabled:cursor-not-allowed"
 						id="generate-title-button"
 						disabled={generating}
 						on:click={() => {
@@ -618,7 +516,7 @@
 			<div class=" flex items-center self-center space-x-1.5">
 				<Tooltip content={$i18n.t('Archive')} className="flex items-center">
 					<button
-						class="focus-ring touch-target-compact self-center rounded-full text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+						class=" self-center dark:hover:text-white transition"
 						on:click={() => {
 							archiveChatHandler(id);
 						}}
@@ -630,7 +528,7 @@
 
 				<Tooltip content={$i18n.t('Delete')}>
 					<button
-						class="focus-ring touch-target-compact self-center rounded-full text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+						class=" self-center dark:hover:text-white transition"
 						on:click={() => {
 							deleteChatHandler(id);
 						}}
@@ -667,8 +565,7 @@
 				>
 					<button
 						aria-label="Chat Menu"
-						type="button"
-						class="focus-ring touch-target-compact m-0 self-center rounded-full text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+						class=" self-center dark:hover:text-white transition m-0"
 						on:click={() => {
 							dispatch('select');
 						}}
@@ -690,7 +587,6 @@
 					<!-- Shortcut support using "delete-chat-button" id -->
 					<button
 						id="delete-chat-button"
-						aria-label={$i18n.t('Delete chat')}
 						class="hidden"
 						on:click={() => {
 							showDeleteConfirm = true;

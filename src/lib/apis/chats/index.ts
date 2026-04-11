@@ -436,10 +436,7 @@ export const getChatListByFolderId = async (token: string, folderId: string, pag
 		throw error;
 	}
 
-	return res.map((chat) => ({
-		...chat,
-		time_range: getTimeRange(chat.updated_at)
-	}));
+	return res;
 };
 
 export const getAllArchivedChats = async (token: string) => {
