@@ -63,7 +63,10 @@
 		selectedTerminalId.set($selectedTerminalId === terminal.id ? null : terminal.id);
 
 		// Disable all direct terminals when switching to a system terminal
-		if ($settings?.terminalServers?.some((s) => s.enabled)) {
+		const shouldClearDirectTerminals =
+			($settings?.terminalServers ?? []).some((s) => s.enabled) || !!selectedDirectTerminal;
+
+		if (shouldClearDirectTerminals) {
 			const updatedServers = ($settings.terminalServers ?? []).map((s) => ({
 				...s,
 				enabled: false

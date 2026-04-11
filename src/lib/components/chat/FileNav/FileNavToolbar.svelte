@@ -4,14 +4,16 @@
 	import Folder from '../../icons/Folder.svelte';
 	import NewFolderAlt from '../../icons/NewFolderAlt.svelte';
 	import FilePlusAlt from '../../icons/FilePlusAlt.svelte';
+	import Search from '../../icons/Search.svelte';
 	import Spinner from '../../common/Spinner.svelte';
 	import Tooltip from '../../common/Tooltip.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n = getContext<any>('i18n');
 
 	export let breadcrumbs: { label: string; path: string }[] = [];
 	export let selectedFile: string | null = null;
 	export let loading = false;
+	export let filterQuery = '';
 
 	export let onNavigate: (path: string) => void = () => {};
 	export let onRefresh: () => void = () => {};
@@ -20,6 +22,7 @@
 	export let onUploadFiles: (files: File[]) => void = () => {};
 	export let onDownloadDir: () => void = () => {};
 	export let onMove: (source: string, destFolder: string) => void = () => {};
+	export let onFilterChange: (value: string) => void = () => {};
 
 	// Back / forward navigation
 	export let canGoBack = false;
@@ -42,8 +45,9 @@
 	<!-- Back -->
 	<Tooltip content={$i18n.t('Back')}>
 		<button
-			class="shrink-0 p-1 rounded transition {canGoBack
-				? 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-400'
+			type="button"
+			class="focus-ring touch-target-compact shrink-0 rounded transition {canGoBack
+				? 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200'
 				: 'text-gray-200 dark:text-gray-700 cursor-default'}"
 			on:click={onGoBack}
 			disabled={!canGoBack}
@@ -67,8 +71,9 @@
 	<!-- Forward -->
 	<Tooltip content={$i18n.t('Forward')}>
 		<button
-			class="shrink-0 p-1 rounded transition {canGoForward
-				? 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 dark:hover:text-gray-400'
+			type="button"
+			class="focus-ring touch-target-compact shrink-0 rounded transition {canGoForward
+				? 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200'
 				: 'text-gray-200 dark:text-gray-700 cursor-default'}"
 			on:click={onGoForward}
 			disabled={!canGoForward}
@@ -98,10 +103,11 @@
 				<span class="text-gray-300 dark:text-gray-600 text-xs shrink-0 select-none mx-0.5">/</span>
 			{/if}
 			<button
-				class="text-xs shrink-0 px-1 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition
+				type="button"
+				class="focus-ring shrink-0 rounded px-1.5 py-1 text-xs transition hover:bg-gray-100 dark:hover:bg-gray-800
 					{!selectedFile && i === breadcrumbs.length - 1
 					? 'text-gray-700 dark:text-gray-300'
-					: 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400'}
+					: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}
 					{dragOverCrumb === i
 					? 'bg-blue-50 dark:bg-blue-900/30 ring-1 ring-blue-400 dark:ring-blue-500'
 					: ''}"
@@ -139,9 +145,26 @@
 		{/if}
 	</div>
 
+	{#if !selectedFile}
+		<div
+			class="hidden min-w-28 max-w-40 items-center rounded-lg bg-gray-50 px-2 py-1 focus-within:ring-1 focus-within:ring-gray-300 dark:bg-gray-900/70 dark:focus-within:ring-gray-700 md:flex"
+		>
+			<div class="mr-1.5 text-gray-500 dark:text-gray-400">
+				<Search className="size-3" />
+			</div>
+			<input
+				class="w-full bg-transparent text-[11px] outline-hidden text-gray-600 dark:text-gray-300"
+				placeholder={$i18n.t('Search')}
+				value={filterQuery}
+				on:input={(e) => onFilterChange((e.currentTarget as HTMLInputElement).value)}
+			/>
+		</div>
+	{/if}
+
 	<Tooltip content={$i18n.t('Refresh')}>
 		<button
-			class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+			type="button"
+			class="focus-ring touch-target-compact shrink-0 rounded text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 			on:click={onRefresh}
 			aria-label={$i18n.t('Refresh')}
 		>
@@ -163,7 +186,8 @@
 	{#if !selectedFile}
 		<Tooltip content={$i18n.t('New Folder')}>
 			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+				type="button"
+				class="focus-ring touch-target-compact shrink-0 rounded text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 				on:click={onNewFolder}
 				aria-label={$i18n.t('New Folder')}
 			>
@@ -172,7 +196,8 @@
 		</Tooltip>
 		<Tooltip content={$i18n.t('New File')}>
 			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+				type="button"
+				class="focus-ring touch-target-compact shrink-0 rounded text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 				on:click={onNewFile}
 				aria-label={$i18n.t('New File')}
 			>
@@ -181,7 +206,8 @@
 		</Tooltip>
 		<Tooltip content={$i18n.t('Download')}>
 			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+				type="button"
+				class="focus-ring touch-target-compact shrink-0 rounded text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 				on:click={onDownloadDir}
 				aria-label={$i18n.t('Download')}
 			>
@@ -202,7 +228,8 @@
 		</Tooltip>
 		<Tooltip content={$i18n.t('Upload')}>
 			<button
-				class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+				type="button"
+				class="focus-ring touch-target-compact shrink-0 rounded text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
 				on:click={() => uploadInput?.click()}
 				aria-label={$i18n.t('Upload')}
 			>

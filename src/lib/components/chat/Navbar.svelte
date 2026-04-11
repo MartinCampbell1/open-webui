@@ -5,15 +5,22 @@
 	import {
 		WEBUI_NAME,
 		banners,
+		chatControlsOpenTarget,
 		chatId,
 		config,
+		hermesContextLoaded,
+		hermesContextLoading,
+		hermesProfilesStore,
+		hermesRuntimeStore,
+		hermesWorkspacesStore,
 		mobile,
 		settings,
 		showArchivedChats,
 		showControls,
 		showSidebar,
 		temporaryChatEnabled,
-		user
+		user,
+		type HermesControlsOpenTarget
 	} from '$lib/stores';
 
 	import { slide } from 'svelte/transition';
@@ -25,7 +32,6 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import Menu from '$lib/components/layout/Navbar/Menu.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
-	import AdjustmentsHorizontal from '../icons/AdjustmentsHorizontal.svelte';
 
 	import PencilSquare from '../icons/PencilSquare.svelte';
 	import Banner from '../common/Banner.svelte';
@@ -39,17 +45,28 @@
 	import ChatCheck from '../icons/ChatCheck.svelte';
 	import Knobs from '../icons/Knobs.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import HermesContextBar from '$lib/components/hermes/context/HermesContextBar.svelte';
+	import HermesQuickActionGroup from '$lib/components/hermes/navigation/HermesQuickActionGroup.svelte';
+	import { buildHermesContextSummary, ensureHermesContextBundle } from '$lib/utils/hermesContext';
 
-	const i18n = getContext('i18n');
+	const i18n = getContext<any>('i18n');
+	const HERMES_ONLY_CHAT = true;
 
 	export let initNewChat: Function;
 	export let shareEnabled: boolean = false;
 	export let scrollTop = 0;
 
 	export let chat;
+	export let chatHermesSession: Record<string, any> | null = null;
+	export let chatMeta: Record<string, any> | null = null;
+	export let chatFiles: any[] = [];
 	export let history;
 	export let selectedModels;
 	export let showModelSelector = true;
+	export let showControlsButton = true;
+	export let generating = false;
+	export let taskIds: string[] | null = null;
+	export let pendingApproval: boolean | Record<string, any> | null = null;
 
 	export let onSaveTempChat: () => {};
 	export let archiveChatHandler: (id: string) => void;
@@ -59,6 +76,43 @@
 
 	let showShareChatModal = false;
 	let showDownloadChatModal = false;
+
+	const openControlsTo = async (target: Exclude<HermesControlsOpenTarget, null>) => {
+		chatControlsOpenTarget.set(target);
+		await showControls.set(true);
+	};
+	$: shouldShowHermesQuickActions = !$mobile;
+	$: hasLiveRunTasks = Array.isArray(taskIds) && taskIds.length > 0;
+	$: shouldShowTasksQuickAction = !!(
+		chat?.id ||
+		history?.currentId ||
+		generating ||
+		pendingApproval ||
+		hasLiveRunTasks
+	);
+	$: liveRunActivityCount = hasLiveRunTasks ? taskIds.length : 0;
+	$: liveRunStateTone = pendingApproval
+		? 'approval'
+		: generating
+			? 'running'
+			: hasLiveRunTasks
+				? 'tasks'
+				: 'idle';
+	$: shouldShowHermesContextStrip = !$mobile;
+	$: navbarContextSummary = buildHermesContextSummary({
+		chatHermesSession,
+		chatMeta,
+		runtime: $hermesRuntimeStore,
+		workspaces: $hermesWorkspacesStore,
+		profiles: $hermesProfilesStore,
+		temporaryChatEnabled: $temporaryChatEnabled,
+		currentMessageId: history?.currentId,
+		selectedModelLabel: selectedModels?.[0] ?? '',
+		chatAttachedFileCount: chatFiles?.length ?? 0
+	});
+	$: if (shouldShowHermesContextStrip && !$hermesContextLoaded && !$hermesContextLoading) {
+		void ensureHermesContextBundle(localStorage?.token, { includeProfiles: false });
+	}
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -114,12 +168,21 @@
 					{#if showModelSelector}
 						<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
 					{/if}
+
+					{#if shouldShowHermesContextStrip && navbarContextSummary}
+						<HermesContextBar
+							summary={navbarContextSummary}
+							on:workspace={() => openControlsTo('workspace')}
+							on:profile={() => openControlsTo('profile')}
+							on:session={() => openControlsTo('context')}
+						/>
+					{/if}
 				</div>
 
 				<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 					<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 
-					{#if $user?.role === 'user' ? ($user?.permissions?.chat?.temporary ?? true) && !($user?.permissions?.chat?.temporary_enforced ?? false) : true}
+					{#if !HERMES_ONLY_CHAT && ($user?.role === 'user' ? ($user?.permissions?.chat?.temporary ?? true) && !($user?.permissions?.chat?.temporary_enforced ?? false) : true)}
 						{#if !chat?.id}
 							<Tooltip content={$i18n.t(`Temporary Chat`)}>
 								<button
@@ -212,7 +275,22 @@
 						</Menu>
 					{/if}
 
-					{#if $user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true)}
+					{#if shouldShowHermesQuickActions}
+						<div class="mx-1">
+							<HermesQuickActionGroup
+								taskState={liveRunStateTone}
+								count={liveRunActivityCount}
+								showLiveRun={shouldShowTasksQuickAction}
+								onWorkspace={() => openControlsTo('workspace')}
+								onCurrentContext={() => openControlsTo('context')}
+								onSessionHistory={() => openControlsTo('sessions')}
+								onInspect={() => openControlsTo('profile')}
+								onLiveRun={() => openControlsTo('tasks')}
+							/>
+						</div>
+					{/if}
+
+					{#if showControlsButton && ($user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true))}
 						<Tooltip content={$i18n.t('Controls')}>
 							<button
 								class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
@@ -259,7 +337,7 @@
 		</div>
 	</div>
 
-	{#if $temporaryChatEnabled && ($chatId ?? '').startsWith('local:')}
+	{#if !HERMES_ONLY_CHAT && $temporaryChatEnabled && ($chatId ?? '').startsWith('local:')}
 		<div class=" w-full z-30 text-center">
 			<div class="text-xs text-gray-500">{$i18n.t('Temporary Chat')}</div>
 		</div>

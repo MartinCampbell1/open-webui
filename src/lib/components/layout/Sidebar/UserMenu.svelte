@@ -9,7 +9,7 @@
 
 	import { showSettings, mobile, showSidebar, showShortcuts, user, config } from '$lib/stores';
 
-	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import { HERMES_DOCS_URL, HERMES_RELEASES_URL, WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import Dropdown from '$lib/components/common/Dropdown.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -289,7 +289,7 @@
 
 				{#if $user?.role === 'admin'}
 					<a
-						href="https://docs.openwebui.com"
+						href={HERMES_DOCS_URL}
 						target="_blank"
 						draggable="false"
 						class="flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer select-none"
@@ -306,7 +306,7 @@
 
 					<!-- Releases -->
 					<a
-						href="https://github.com/open-webui/open-webui/releases"
+						href={HERMES_RELEASES_URL}
 						target="_blank"
 						draggable="false"
 						class="flex rounded-xl py-1.5 px-3 w-full hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer select-none"

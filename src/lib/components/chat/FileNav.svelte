@@ -1,6 +1,6 @@
 <script context="module">
 	// Persists across mount/unmount cycles (module-level, not per-instance)
-	let savedPath = '/';
+	const persistedFileNavState = { path: '/' };
 </script>
 
 <script lang="ts">
@@ -11,7 +11,8 @@
 		settings,
 		showFileNavPath,
 		showFileNavDir,
-		selectedTerminalId
+		selectedTerminalId,
+		type WorkspacePanelStatus
 	} from '$lib/stores';
 	import {
 		getCwd,
@@ -44,10 +45,12 @@
 	import PortList from './FileNav/PortList.svelte';
 	import PortPreview from './FileNav/PortPreview.svelte';
 	import XTerminal from './XTerminal.svelte';
+	import HermesWorkspaceGuideRow from '$lib/components/hermes/workspace/HermesWorkspaceGuideRow.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n = getContext<any>('i18n');
 
 	export let onAttach: ((blob: Blob, name: string, contentType: string) => void) | null = null;
+	export let onWorkspaceStatusChange: ((status: WorkspacePanelStatus) => void) | null = null;
 	export let overlay = false;
 
 	// ── Terminal panel state ────────────────────────────────────────────
@@ -86,8 +89,9 @@
 	};
 
 	// ── Directory state ──────────────────────────────────────────────────
-	let currentPath = savedPath;
+	let currentPath = persistedFileNavState.path;
 	let entries: FileEntry[] = [];
+	let filterQuery = '';
 	let loading = false;
 	let error: string | null = null;
 
@@ -184,6 +188,8 @@
 	// ── Upload / folder creation ─────────────────────────────────────────
 	let isDragOver = false;
 	let uploading = false;
+	let attaching = false;
+	let guideUploadInput: HTMLInputElement;
 	let creatingFolder = false;
 	let newFolderName = '';
 	let newFolderInput: HTMLInputElement;
@@ -200,12 +206,23 @@
 	let selectedTerminal: { url: string; key: string } | null = null;
 
 	const getTerminal = (): { url: string; key: string } | null => {
+		const terminalServersList = ($terminalServers ?? []) as Array<{
+			id?: string;
+			url?: string;
+			key?: string;
+		}>;
+		const terminalSettings = $settings as
+			| {
+					terminalServers?: Array<{ url?: string; key?: string }>;
+			  }
+			| null
+			| undefined;
 		const systemTerminal = $selectedTerminalId
-			? (($terminalServers ?? []).find((t) => t.id === $selectedTerminalId) ?? null)
-			: ($terminalServers?.[0] ?? null);
+			? (terminalServersList.find((t) => t.id === $selectedTerminalId) ?? null)
+			: (terminalServersList[0] ?? null);
 
-		const userTerminal = ($settings?.terminalServers ?? []).find(
-			(s) => s.url === $selectedTerminalId
+		const userTerminal = (terminalSettings?.terminalServers ?? []).find(
+			(s: { url?: string; key?: string }) => s.url === $selectedTerminalId
 		);
 
 		const isSystem = !!systemTerminal;
@@ -236,7 +253,7 @@
 				const rawCwd = await getCwd(terminal.url, terminal.key);
 				const cwd = rawCwd ? normalizePath(rawCwd) : null;
 				const dir = cwd ? (cwd.endsWith('/') ? cwd : cwd + '/') : '/';
-				savedPath = dir;
+				persistedFileNavState.path = dir;
 				loadDir(dir);
 			})();
 		}
@@ -270,6 +287,23 @@
 			[root]
 		);
 	};
+
+	$: workspaceGuideMeta = [
+		$i18n.t('Workspace path: {{PATH}}', { PATH: currentPath }),
+		$i18n.t('Files: {{COUNT}}', { COUNT: filteredEntries.length })
+	];
+	$: filteredEntries = filterQuery
+		? entries.filter((entry) => entry.name.toLowerCase().includes(filterQuery.toLowerCase()))
+		: entries;
+	$: onWorkspaceStatusChange?.({
+		source: 'terminal',
+		currentPath,
+		itemCount: entries.length,
+		visibleItemCount: selectedFile ? 0 : filteredEntries.length,
+		selectedFile,
+		selectedFileName: selectedFile?.split('/').pop() ?? null,
+		attachEnabled: !!onAttach && !!selectedFile && !attaching
+	});
 
 	// ── File preview management ──────────────────────────────────────────
 	const clearFilePreview = () => {
@@ -309,7 +343,7 @@
 		clearFilePreview();
 		clearSelection();
 		currentPath = path;
-		savedPath = path;
+		persistedFileNavState.path = path;
 		pushNavHistory(path);
 
 		const result = await listFiles(terminal.url, terminal.key, path);
@@ -416,6 +450,18 @@
 		a.download = result.filename;
 		a.click();
 		URL.revokeObjectURL(url);
+	};
+
+	const attachSelectedFile = async () => {
+		if (!onAttach || !selectedFile || !selectedTerminal) return;
+
+		attaching = true;
+		const result = await downloadFileBlob(selectedTerminal.url, selectedTerminal.key, selectedFile);
+		attaching = false;
+
+		if (!result) return;
+
+		onAttach(result.blob, result.filename, result.blob.type || 'application/octet-stream');
 	};
 
 	// ── Drag-and-drop upload ─────────────────────────────────────────────
@@ -685,7 +731,7 @@
 	};
 
 	// ── Lifecycle ────────────────────────────────────────────────────────
-	onMount(async () => {
+	onMount(() => {
 		const terminal = getTerminal();
 		if (!terminal) return;
 
@@ -734,15 +780,19 @@
 			}
 		});
 
-		if (!handledDisplayFile) {
-			loading = true;
-			if (savedPath === '/') {
-				const rawCwd = await getCwd(terminal.url, terminal.key);
-				const cwd = rawCwd ? normalizePath(rawCwd) : null;
-				if (cwd) savedPath = cwd.endsWith('/') ? cwd : cwd + '/';
+		const bootstrap = async () => {
+			if (!handledDisplayFile) {
+				loading = true;
+				if (persistedFileNavState.path === '/') {
+					const rawCwd = await getCwd(terminal.url, terminal.key);
+					const cwd = rawCwd ? normalizePath(rawCwd) : null;
+					if (cwd) persistedFileNavState.path = cwd.endsWith('/') ? cwd : cwd + '/';
+				}
+				loadDir(persistedFileNavState.path);
 			}
-			loadDir(savedPath);
-		}
+		};
+
+		void bootstrap();
 
 		const onKeyDown = (e: KeyboardEvent) => {
 			if (e.key === 'Shift') shiftKey = true;
@@ -814,7 +864,7 @@
 		on:dragleave={() => (isDragOver = false)}
 		on:drop={handleDrop}
 		role="region"
-		aria-label={$i18n.t('File browser')}
+		aria-label={$i18n.t('Terminal files browser')}
 	>
 		{#if isDragOver}
 			<div
@@ -834,7 +884,9 @@
 						d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"
 					/>
 				</svg>
-				<span class="text-xs text-gray-400 dark:text-gray-500">{currentPath}</span>
+				<span class="text-xs text-gray-400 dark:text-gray-500">
+					{$i18n.t('Drop files here to add them to the workspace')}
+				</span>
 			</div>
 		{/if}
 
@@ -843,6 +895,7 @@
 				breadcrumbs={buildBreadcrumbs(currentPath)}
 				{selectedFile}
 				{loading}
+				{filterQuery}
 				{canGoBack}
 				{canGoForward}
 				onGoBack={goBack}
@@ -861,7 +914,55 @@
 				onUploadFiles={handleUploadFiles}
 				onDownloadDir={() => downloadFile(currentPath)}
 				onMove={handleMove}
+				onFilterChange={(value) => {
+					filterQuery = value;
+				}}
 			>
+				<Tooltip content={$i18n.t('Attach to chat')}>
+					<button
+						class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+						on:click={attachSelectedFile}
+						disabled={!onAttach || attaching}
+						aria-label={$i18n.t('Attach to chat')}
+					>
+						{#if attaching}
+							<Spinner className="size-3.5" />
+						{:else}
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="1.5"
+								class="size-3.5"
+							>
+								<path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m6-6H6" />
+							</svg>
+						{/if}
+					</button>
+				</Tooltip>
+				<Tooltip content={$i18n.t('Close')}>
+					<button
+						class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
+						on:click={() => {
+							selectedFile = null;
+							previewPort = null;
+							clearFilePreview();
+						}}
+						aria-label={$i18n.t('Close')}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="1.5"
+							class="size-3.5"
+						>
+							<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+						</svg>
+					</button>
+				</Tooltip>
 				{#if fileImageUrl !== null || (fileOfficeSlides !== null && fileOfficeSlides.length > 0)}
 					<Tooltip content={$i18n.t('Reset view')}>
 						<button
@@ -1103,7 +1204,11 @@
 				<Tooltip content={$i18n.t('Download')}>
 					<button
 						class="shrink-0 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400"
-						on:click={() => downloadFile(selectedFile)}
+						on:click={() => {
+							if (selectedFile) {
+								downloadFile(selectedFile);
+							}
+						}}
 						aria-label={$i18n.t('Download')}
 					>
 						<svg
@@ -1124,6 +1229,48 @@
 				</Tooltip>
 			</FileNavToolbar>
 
+			{#if !selectedFile && previewPort === null && !loading && !error}
+				<HermesWorkspaceGuideRow
+					title={$i18n.t('Workspace browser')}
+					description={$i18n.t(
+						'Browse the current terminal workspace, preview files in place, or attach the selected file back into chat.'
+					)}
+					metaItems={workspaceGuideMeta}
+				>
+					<svelte:fragment slot="actions">
+						<button
+							class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
+							on:click={startNewFolder}
+						>
+							{$i18n.t('New Folder')}
+						</button>
+						<button
+							class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
+							on:click={startNewFile}
+						>
+							{$i18n.t('New File')}
+						</button>
+						<button
+							class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
+							on:click={() => guideUploadInput?.click()}
+						>
+							{$i18n.t('Upload')}
+						</button>
+						<input
+							bind:this={guideUploadInput}
+							type="file"
+							multiple
+							hidden
+							on:change={async () => {
+								if (!guideUploadInput?.files?.length) return;
+								handleUploadFiles(Array.from(guideUploadInput.files));
+								guideUploadInput.value = '';
+							}}
+						/>
+					</svelte:fragment>
+				</HermesWorkspaceGuideRow>
+			{/if}
+
 			<!-- Bulk action bar -->
 			{#if selectedCount > 0}
 				<BulkActionBar
@@ -1143,8 +1290,16 @@
 		<!-- Content -->
 		<div
 			class="flex-1 overflow-y-auto min-h-0 min-w-0"
+			role="button"
+			tabindex="0"
 			on:click={(e) => {
 				if (e.target === e.currentTarget && selectedCount > 0) clearSelection();
+			}}
+			on:keydown={(e) => {
+				if ((e.key === 'Enter' || e.key === ' ') && selectedCount > 0) {
+					e.preventDefault();
+					clearSelection();
+				}
 			}}
 		>
 			{#if previewPort !== null}
@@ -1212,15 +1367,22 @@
 					<div class="flex flex-col items-center justify-center gap-1.5 py-12 text-center">
 						<Folder className="size-6 text-gray-200 dark:text-gray-700" />
 						<div class="text-xs text-gray-400 dark:text-gray-500">
-							{$i18n.t('This folder is empty')}
+							{$i18n.t('This workspace folder is empty')}
 						</div>
 						<div class="text-[11px] text-gray-300 dark:text-gray-600">
-							{$i18n.t('Drop files here to upload')}
+							{$i18n.t('Drop files here to upload into the workspace')}
 						</div>
 					</div>
 				{/if}
 
 				{#if !loading && !error && !uploading}
+					{#if entries.length > 0 && filteredEntries.length === 0 && !creatingFolder && !creatingFile}
+						<div class="flex flex-col items-center justify-center gap-1.5 py-10 text-center">
+							<div class="text-xs text-gray-400 dark:text-gray-500">
+								{$i18n.t('No matching workspace files found')}
+							</div>
+						</div>
+					{/if}
 					{#if creatingFolder}
 						<div class="flex items-center gap-2 px-3 py-1.5">
 							<Folder className="size-4 shrink-0 text-blue-400 dark:text-blue-300" />
@@ -1260,9 +1422,9 @@
 						</div>
 					{/if}
 
-					{#if entries.length > 0 || creatingFolder || creatingFile}
+					{#if filteredEntries.length > 0 || creatingFolder || creatingFile}
 						<ul>
-							{#each entries as entry}
+							{#each filteredEntries as entry}
 								<FileEntryRow
 									{entry}
 									{currentPath}
@@ -1315,7 +1477,7 @@
 						<div
 							class="h-px bg-transparent group-hover:bg-black/10 dark:group-hover:bg-white/10 transition"
 						/>
-						<div class="absolute inset-x-0 -top-1.5 -bottom-1.5" />
+						<div class="absolute inset-x-0 -top-1.5 -bottom-1.5"></div>
 					</div>
 				{/if}
 
@@ -1345,7 +1507,7 @@
 								: terminalConnecting
 									? 'bg-yellow-500 animate-pulse'
 									: 'bg-gray-400'}"
-						/>
+						></div>
 					{/if}
 
 					<svg

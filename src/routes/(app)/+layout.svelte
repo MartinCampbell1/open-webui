@@ -30,7 +30,6 @@
 		banners,
 		showSettings,
 		showShortcuts,
-		showChangelog,
 		temporaryChatEnabled,
 		toolServers,
 		terminalServers,
@@ -43,13 +42,13 @@
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
-	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { Shortcut, shortcuts } from '$lib/shortcuts';
 
 	const i18n = getContext('i18n');
+	const HERMES_ONLY_CHAT = true;
 
 	let loaded = false;
 	let DB = null;
@@ -291,11 +290,7 @@
 				} else if (isShortcutMatch(event, shortcuts[Shortcut.NEW_TEMPORARY_CHAT])) {
 					console.log('Shortcut triggered: NEW_TEMPORARY_CHAT');
 					event.preventDefault();
-					if ($user?.role !== 'admin' && $user?.permissions?.chat?.temporary_enforced) {
-						temporaryChatEnabled.set(true);
-					} else {
-						temporaryChatEnabled.set(!$temporaryChatEnabled);
-					}
+					temporaryChatEnabled.set(HERMES_ONLY_CHAT ? false : !$temporaryChatEnabled);
 					await goto('/');
 					setTimeout(() => {
 						document.getElementById('new-chat-button')?.click();
@@ -316,11 +311,9 @@
 		};
 		setupKeyboardShortcuts();
 
-		if ($user?.role === 'admin' && ($settings?.showChangelog ?? true)) {
-			showChangelog.set($settings?.version !== $config.version);
-		}
-
-		if ($user?.role === 'admin' || ($user?.permissions?.chat?.temporary ?? true)) {
+		if (HERMES_ONLY_CHAT) {
+			temporaryChatEnabled.set(false);
+		} else if ($user?.role === 'admin' || ($user?.permissions?.chat?.temporary ?? true)) {
 			if ($page.url.searchParams.get('temporary-chat') === 'true') {
 				temporaryChatEnabled.set(true);
 			}
@@ -377,7 +370,6 @@
 </script>
 
 <SettingsModal bind:show={$showSettings} />
-<ChangelogModal bind:show={$showChangelog} />
 
 {#if version && compareVersion(version.latest, version.current) && ($settings?.showUpdateToast ?? true)}
 	<div class=" absolute bottom-8 right-8 z-50" in:fade={{ duration: 100 }}>

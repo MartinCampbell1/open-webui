@@ -1,10 +1,15 @@
 <script lang="ts">
-	import { getContext, onMount } from 'svelte';
+	import { getContext } from 'svelte';
 	const i18n = getContext('i18n');
 
 	import dayjs from 'dayjs';
 	import localizedFormat from 'dayjs/plugin/localizedFormat';
-	import { getTimeRange } from '$lib/utils';
+	import { hermesSessionsByChatId } from '$lib/stores';
+	import {
+		buildHermesAwareChatList,
+		formatHermesChatListMetaLine,
+		getResolvedHermesSessionContext
+	} from '$lib/utils/hermesSessions';
 	import ChevronUp from '$lib/components/icons/ChevronUp.svelte';
 	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
 	import Loader from '$lib/components/common/Loader.svelte';
@@ -21,21 +26,26 @@
 
 	let chatList = null;
 
+	const getChatListMetaLine = (chat) => {
+		return formatHermesChatListMetaLine({
+			hermesMeta: getResolvedHermesSessionContext({
+				session: $hermesSessionsByChatId[chat?.id] ?? null,
+				meta: chat?.meta ?? null,
+				chatPayload: chat?.chat ?? null
+			}),
+			session: $hermesSessionsByChatId[chat?.id] ?? null,
+			summary: chat?.session_summary,
+			translate: $i18n.t
+		});
+	};
+
 	const init = async () => {
 		if (chats.length === 0) {
 			chatList = [];
 		} else {
-			chatList = chats.map((chat) => ({
-				...chat,
-				time_range: getTimeRange(chat.updated_at)
-			}));
-
-			chatList.sort((a, b) => {
-				if (direction === 'asc') {
-					return a[orderBy] > b[orderBy] ? 1 : -1;
-				} else {
-					return a[orderBy] < b[orderBy] ? 1 : -1;
-				}
+			chatList = buildHermesAwareChatList(chats, $hermesSessionsByChatId, {
+				orderBy,
+				direction
 			});
 		}
 	};
@@ -54,7 +64,7 @@
 	let orderBy = 'updated_at';
 	let direction = 'desc'; // 'asc' or 'desc'
 
-	$: if (chats) {
+	$: if (chats && $hermesSessionsByChatId) {
 		init();
 	}
 </script>
@@ -153,13 +163,20 @@
 				href={`/c/${chat.id}`}
 				on:click={() => (show = false)}
 			>
-				<div class="text-ellipsis line-clamp-1 w-full sm:basis-3/5">
-					{chat?.title}
+				<div class="w-full min-w-0 sm:basis-3/5">
+					<div class="text-ellipsis line-clamp-1 w-full">
+						{chat?.title}
+					</div>
+					{#if getChatListMetaLine(chat)}
+						<div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
+							{getChatListMetaLine(chat)}
+						</div>
+					{/if}
 				</div>
 
 				<div class="hidden sm:flex sm:basis-2/5 items-center justify-end">
 					<div class=" text-gray-500 dark:text-gray-400 text-xs">
-						{dayjs(chat?.updated_at * 1000).calendar()}
+						{dayjs((chat?.effective_updated_at ?? chat?.updated_at) * 1000).calendar()}
 					</div>
 				</div>
 			</a>

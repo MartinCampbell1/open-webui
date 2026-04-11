@@ -28,6 +28,7 @@
 	let showValves = getOpen('valves', false);
 	let showSystemPrompt = getOpen('systemPrompt');
 	let showAdvancedParams = getOpen('advancedParams');
+	let showAdvancedControls = getOpen('advancedControls', false);
 </script>
 
 <div class=" dark:text-white">
@@ -48,6 +49,21 @@
 
 	{#if $user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true)}
 		<div class=" dark:text-gray-200 text-sm py-0.5 px-0.5">
+			{#if embed}
+				<div
+					class="mb-2 rounded-lg border border-gray-200 bg-gray-50/80 px-3 py-2 text-xs text-gray-600 dark:border-gray-700/40 dark:bg-gray-800/40 dark:text-gray-300"
+				>
+					<div class="font-medium text-gray-700 dark:text-gray-200">
+						{$i18n.t('Browser-side request layer')}
+					</div>
+					<div class="mt-0.5 leading-snug">
+						{$i18n.t(
+							'These settings apply to the browser-side Open WebUI request layer. Hermes profile/runtime stays in control unless you explicitly override it here.'
+						)}
+					</div>
+				</div>
+			{/if}
+
 			{#if chatFiles.length > 0}
 				<Collapsible
 					title={$i18n.t('Files')}
@@ -84,54 +100,61 @@
 				<hr class="my-2 border-gray-50 dark:border-gray-700/10" />
 			{/if}
 
-			{#if $user?.role === 'admin' || ($user?.permissions.chat?.valves ?? true)}
+			{#if $user?.role === 'admin' || ($user?.permissions.chat?.valves ?? true) || ($user?.permissions.chat?.system_prompt ?? true) || ($user?.permissions.chat?.params ?? true)}
 				<Collapsible
-					bind:open={showValves}
-					onChange={setOpen('valves')}
-					title={$i18n.t('Valves')}
+					title={$i18n.t('Advanced')}
+					bind:open={showAdvancedControls}
+					onChange={setOpen('advancedControls')}
 					buttonClassName="w-full"
 				>
-					<div class="text-sm" slot="content">
-						<Valves show={showValves} />
-					</div>
-				</Collapsible>
+					<div class="space-y-2 text-sm mt-1.5" slot="content">
+						{#if $user?.role === 'admin' || ($user?.permissions.chat?.valves ?? true)}
+							<Collapsible
+								bind:open={showValves}
+								onChange={setOpen('valves')}
+								title={$i18n.t('Valves')}
+								buttonClassName="w-full"
+							>
+								<div class="text-sm" slot="content">
+									<Valves show={showValves} />
+								</div>
+							</Collapsible>
+						{/if}
 
-				<hr class="my-2 border-gray-50 dark:border-gray-700/10" />
-			{/if}
+						{#if $user?.role === 'admin' || ($user?.permissions.chat?.system_prompt ?? true)}
+							<Collapsible
+								title={$i18n.t('System Prompt')}
+								bind:open={showSystemPrompt}
+								onChange={setOpen('systemPrompt')}
+								buttonClassName="w-full"
+							>
+								<div class="" slot="content">
+									<textarea
+										bind:value={params.system}
+										class="w-full text-xs outline-hidden resize-vertical {$settings.highContrastMode
+											? 'border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 p-2.5'
+											: 'py-1.5 bg-transparent'}"
+										rows="4"
+										placeholder={$i18n.t('Enter system prompt')}
+									/>
+								</div>
+							</Collapsible>
+						{/if}
 
-			{#if $user?.role === 'admin' || ($user?.permissions.chat?.system_prompt ?? true)}
-				<Collapsible
-					title={$i18n.t('System Prompt')}
-					bind:open={showSystemPrompt}
-					onChange={setOpen('systemPrompt')}
-					buttonClassName="w-full"
-				>
-					<div class="" slot="content">
-						<textarea
-							bind:value={params.system}
-							class="w-full text-xs outline-hidden resize-vertical {$settings.highContrastMode
-								? 'border-2 border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 p-2.5'
-								: 'py-1.5 bg-transparent'}"
-							rows="4"
-							placeholder={$i18n.t('Enter system prompt')}
-						/>
-					</div>
-				</Collapsible>
-
-				<hr class="my-2 border-gray-50 dark:border-gray-700/10" />
-			{/if}
-
-			{#if $user?.role === 'admin' || ($user?.permissions.chat?.params ?? true)}
-				<Collapsible
-					title={$i18n.t('Advanced Params')}
-					bind:open={showAdvancedParams}
-					onChange={setOpen('advancedParams')}
-					buttonClassName="w-full"
-				>
-					<div class="text-sm mt-1.5" slot="content">
-						<div>
-							<AdvancedParams admin={$user?.role === 'admin'} custom={true} bind:params />
-						</div>
+						{#if $user?.role === 'admin' || ($user?.permissions.chat?.params ?? true)}
+							<Collapsible
+								title={$i18n.t('Advanced Params')}
+								bind:open={showAdvancedParams}
+								onChange={setOpen('advancedParams')}
+								buttonClassName="w-full"
+							>
+								<div class="text-sm mt-1.5" slot="content">
+									<div>
+										<AdvancedParams admin={$user?.role === 'admin'} custom={true} bind:params />
+									</div>
+								</div>
+							</Collapsible>
+						{/if}
 					</div>
 				</Collapsible>
 			{/if}

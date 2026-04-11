@@ -7,6 +7,7 @@
 
 	import { createNewPrompt } from '$lib/apis/prompts';
 	import PromptEditor from '$lib/components/workspace/Prompts/PromptEditor.svelte';
+	import { HERMES_ALLOWED_MESSAGE_ORIGINS } from '$lib/constants';
 
 	let prompt: {
 		name: string;
@@ -33,11 +34,7 @@
 	onMount(async () => {
 		window.addEventListener('message', async (event) => {
 			console.log(event);
-			if (
-				!['https://openwebui.com', 'https://www.openwebui.com', 'http://localhost:9999'].includes(
-					event.origin
-				)
-			)
+			if (!HERMES_ALLOWED_MESSAGE_ORIGINS.includes(event.origin))
 				return;
 			const _prompt = JSON.parse(event.data);
 			console.log('Received prompt via window message:', _prompt);

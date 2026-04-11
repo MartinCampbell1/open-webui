@@ -1,14 +1,26 @@
 <script lang="ts">
 	import { getContext } from 'svelte';
+	import { chatControlsOpenTarget, showControls } from '$lib/stores';
 	import CodeBlock from './CodeBlock.svelte';
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
+	import { getValidHermesGeneratedFiles } from '$lib/utils/hermesWorkspace';
 	const i18n = getContext('i18n');
 
 	export let show = false;
 	export let codeExecution = null;
+
+	$: generatedFiles = getValidHermesGeneratedFiles(codeExecution?.result?.files);
+	$: hasGeneratedFiles = generatedFiles.length > 0;
+
+	const openWorkspace = () => {
+		chatControlsOpenTarget.set('workspace');
+		showControls.set(true);
+		show = false;
+		codeExecution = null;
+	};
 </script>
 
 <Modal size="lg" bind:show>
@@ -88,16 +100,26 @@
 						{/if}
 					</div>
 				{/if}
-				{#if codeExecution?.result?.files && codeExecution?.result?.files.length > 0}
+				{#if hasGeneratedFiles}
 					<div class="flex flex-col w-full">
 						<hr class="border-gray-100/30 dark:border-gray-850/30 my-2" />
-						<div class=" text-sm font-medium dark:text-gray-300">
-							{$i18n.t('Files')}
+						<div class="flex items-center justify-between gap-2">
+							<div class="text-sm font-medium dark:text-gray-300">
+								{$i18n.t('Files')}
+							</div>
+							<button
+								type="button"
+								class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+								aria-label={$i18n.t('Open generated files in workspace')}
+								on:click={openWorkspace}
+							>
+								{$i18n.t('Open workspace')}
+							</button>
 						</div>
 						<ul class="mt-1 list-disc pl-4 text-xs">
-							{#each codeExecution?.result?.files as file}
+							{#each generatedFiles as file}
 								<li>
-									<a href={file.url} target="_blank">{file.name}</a>
+									<a href={file.url} target="_blank" rel="noreferrer">{file.name}</a>
 								</li>
 							{/each}
 						</ul>

@@ -1,6 +1,14 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
-export const getMemories = async (token: string) => {
+export type MemoryItem = {
+	id: string;
+	user_id: string;
+	content: string;
+	updated_at: number;
+	created_at: number;
+};
+
+export const getMemories = async (token: string): Promise<MemoryItem[]> => {
 	let error = null;
 
 	const res = await fetch(`${WEBUI_API_BASE_URL}/memories/`, {

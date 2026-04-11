@@ -4,11 +4,14 @@ import json
 import logging
 import mimetypes
 import os
+from functools import lru_cache
+from io import BytesIO
 import shutil
 import sys
 import time
 import random
 import re
+from pathlib import Path
 from uuid import uuid4
 
 
@@ -72,6 +75,7 @@ from open_webui.routers import (
     analytics,
     audio,
     images,
+    hermes,
     ollama,
     openai,
     retrieval,
@@ -465,6 +469,239 @@ from open_webui.config import (
     AppConfig,
     reset_config,
 )
+
+try:
+    from PIL import Image, ImageDraw
+except Exception:
+    Image = None
+    ImageDraw = None
+
+
+_STATIC_ROOT = Path(STATIC_DIR).resolve()
+_HERMES_STATIC_FALLBACKS = {
+    'favicon.png',
+    'favicon-96x96.png',
+    'favicon-dark.png',
+    'favicon.ico',
+    'favicon.svg',
+    'apple-touch-icon.png',
+    'logo.png',
+    'splash.png',
+    'splash-dark.png',
+    'web-app-manifest-192x192.png',
+    'web-app-manifest-512x512.png',
+    'user.png',
+    'loader.js',
+    'custom.css',
+    'site.webmanifest',
+}
+
+
+def _safe_static_path(path: str) -> Path | None:
+    candidate = (_STATIC_ROOT / path).resolve()
+    if candidate == _STATIC_ROOT or _STATIC_ROOT in candidate.parents:
+        return candidate
+    return None
+
+
+def _hermes_icon_svg(size: int = 512) -> str:
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}">
+  <rect width="{size}" height="{size}" rx="{size * 0.18:.1f}" fill="#111827"/>
+  <rect x="{size * 0.08:.1f}" y="{size * 0.08:.1f}" width="{size * 0.84:.1f}" height="{size * 0.84:.1f}" rx="{size * 0.15:.1f}" fill="#1f2937" stroke="#60a5fa" stroke-width="{max(4, size * 0.02):.1f}"/>
+  <rect x="{size * 0.28:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
+  <rect x="{size * 0.60:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
+  <rect x="{size * 0.28:.1f}" y="{size * 0.43:.1f}" width="{size * 0.44:.1f}" height="{size * 0.12:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
+</svg>"""
+
+
+@lru_cache(maxsize=16)
+def _hermes_icon_png_bytes(size: int) -> bytes:
+    if Image is None or ImageDraw is None:
+        return _hermes_icon_svg(size).encode('utf-8')
+
+    image = Image.new('RGBA', (size, size), '#111827')
+    draw = ImageDraw.Draw(image)
+    radius = max(6, int(size * 0.18))
+    inset = max(2, int(size * 0.08))
+    border = max(2, int(size * 0.02))
+    bar = max(4, int(size * 0.12))
+    bar_x = max(2, int(size * 0.28))
+    center_y = int(size * 0.43)
+    bar_h = int(size * 0.64)
+    bar_top = int(size * 0.18)
+    bar_bottom = bar_top + bar_h
+
+    draw.rounded_rectangle(
+        (inset, inset, size - inset, size - inset),
+        radius=radius,
+        fill='#1f2937',
+        outline='#60a5fa',
+        width=border,
+    )
+    draw.rounded_rectangle(
+        (bar_x, bar_top, bar_x + bar, bar_bottom),
+        radius=max(2, int(size * 0.04)),
+        fill='#f59e0b',
+    )
+    right_x = int(size * 0.60)
+    draw.rounded_rectangle(
+        (right_x, bar_top, right_x + bar, bar_bottom),
+        radius=max(2, int(size * 0.04)),
+        fill='#f59e0b',
+    )
+    draw.rounded_rectangle(
+        (bar_x, center_y, right_x + bar, center_y + bar),
+        radius=max(2, int(size * 0.04)),
+        fill='#f59e0b',
+    )
+
+    buffer = BytesIO()
+    image.save(buffer, format='PNG')
+    return buffer.getvalue()
+
+
+@lru_cache(maxsize=4)
+def _hermes_icon_ico_bytes(size: int = 64) -> bytes:
+    if Image is None or ImageDraw is None:
+        return _hermes_icon_svg(size).encode('utf-8')
+
+    image = Image.new('RGBA', (size, size), '#111827')
+    draw = ImageDraw.Draw(image)
+    radius = max(4, int(size * 0.18))
+    inset = max(1, int(size * 0.08))
+    border = max(1, int(size * 0.02))
+    bar = max(2, int(size * 0.12))
+    bar_x = max(1, int(size * 0.28))
+    center_y = int(size * 0.43)
+    bar_h = int(size * 0.64)
+    bar_top = int(size * 0.18)
+    bar_bottom = bar_top + bar_h
+    right_x = int(size * 0.60)
+
+    draw.rounded_rectangle(
+        (inset, inset, size - inset, size - inset),
+        radius=radius,
+        fill='#1f2937',
+        outline='#60a5fa',
+        width=border,
+    )
+    draw.rounded_rectangle((bar_x, bar_top, bar_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill='#f59e0b')
+    draw.rounded_rectangle((right_x, bar_top, right_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill='#f59e0b')
+    draw.rounded_rectangle(
+        (bar_x, center_y, right_x + bar, center_y + bar),
+        radius=max(1, int(size * 0.04)),
+        fill='#f59e0b',
+    )
+
+    buffer = BytesIO()
+    image.save(buffer, format='ICO', sizes=[(size, size)])
+    return buffer.getvalue()
+
+
+def _hermes_manifest_json() -> str:
+    return json.dumps(
+        {
+            'name': app.state.WEBUI_NAME,
+            'short_name': app.state.WEBUI_NAME,
+            'description': f'{app.state.WEBUI_NAME} is a workspace-first interface for AI sessions, tools, and files.',
+            'start_url': '/',
+            'display': 'standalone',
+            'background_color': '#111827',
+            'icons': [
+                {
+                    'src': '/static/logo.png',
+                    'type': 'image/png',
+                    'sizes': '512x512',
+                    'purpose': 'any',
+                },
+                {
+                    'src': '/static/logo.png',
+                    'type': 'image/png',
+                    'sizes': '512x512',
+                    'purpose': 'maskable',
+                },
+            ],
+            'share_target': {
+                'action': '/',
+                'method': 'GET',
+                'params': {'text': 'shared'},
+            },
+        }
+    )
+
+
+def _static_fallback_response(path: str) -> Response | None:
+    asset = Path(path).name
+    if asset not in _HERMES_STATIC_FALLBACKS:
+        return None
+
+    if asset == 'site.webmanifest':
+        return Response(content=_hermes_manifest_json(), media_type='application/manifest+json')
+
+    if asset == 'loader.js':
+        return Response(
+            content='window.__HERMES_FALLBACK_LOADER__ = true;\n',
+            media_type='application/javascript',
+        )
+
+    if asset == 'custom.css':
+        return Response(content='/* Hermes fallback stylesheet */\n', media_type='text/css')
+
+    if asset == 'favicon.ico':
+        return Response(content=_hermes_icon_ico_bytes(), media_type='image/x-icon')
+
+    if asset.endswith('.svg'):
+        return Response(content=_hermes_icon_svg(512), media_type='image/svg+xml')
+
+    size_map = {
+        'favicon-96x96.png': 96,
+        'apple-touch-icon.png': 180,
+        'web-app-manifest-192x192.png': 192,
+        'web-app-manifest-512x512.png': 512,
+        'splash.png': 512,
+        'splash-dark.png': 512,
+        'favicon-dark.png': 64,
+        'logo.png': 512,
+        'user.png': 64,
+        'favicon.png': 64,
+    }
+    size = size_map.get(asset, 512)
+    return Response(content=_hermes_icon_png_bytes(size), media_type='image/png')
+
+
+async def serve_static_asset(path: str):
+    static_path = _safe_static_path(path)
+    if static_path is None:
+        raise HTTPException(status_code=404, detail='File not found')
+
+    if static_path.is_file():
+        return FileResponse(static_path)
+
+    fallback = _static_fallback_response(path)
+    if fallback is not None:
+        return fallback
+
+    raise HTTPException(status_code=404, detail='File not found')
+
+
+async def serve_favicon_png():
+    return _static_fallback_response('favicon.png')
+
+
+async def serve_favicon_ico():
+    return _static_fallback_response('favicon.ico')
+
+
+async def serve_favicon_svg():
+    return _static_fallback_response('favicon.svg')
+
+
+async def serve_apple_touch_icon():
+    return _static_fallback_response('apple-touch-icon.png')
+
+
+async def serve_user_png():
+    return _static_fallback_response('user.png')
 from open_webui.env import (
     ENABLE_CUSTOM_MODEL_FALLBACK,
     LICENSE_KEY,
@@ -709,12 +946,40 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title='Open WebUI',
+    title='Hermes',
     docs_url='/docs' if ENV == 'dev' else None,
     openapi_url='/openapi.json' if ENV == 'dev' else None,
     redoc_url=None,
     lifespan=lifespan,
 )
+
+app.add_api_route('/static/{path:path}', serve_static_asset, methods=['GET'])
+app.add_api_route('/favicon.png', serve_favicon_png, methods=['GET'])
+app.add_api_route('/favicon.ico', serve_favicon_ico, methods=['GET'])
+app.add_api_route('/favicon.svg', serve_favicon_svg, methods=['GET'])
+app.add_api_route('/apple-touch-icon.png', serve_apple_touch_icon, methods=['GET'])
+app.add_api_route('/user.png', serve_user_png, methods=['GET'])
+
+
+@app.middleware('http')
+async def hermes_static_asset_fallback(request: Request, call_next):
+    path = request.url.path
+    if request.method not in {'GET', 'HEAD'}:
+        return await call_next(request)
+
+    asset = Path(path).name
+    is_static_request = path.startswith('/static/')
+    if asset in _HERMES_STATIC_FALLBACKS or is_static_request:
+        relative_path = path.removeprefix('/static/') if is_static_request else path.removeprefix('/')
+        static_path = _safe_static_path(relative_path)
+        if static_path is not None and static_path.is_file():
+            return await call_next(request)
+
+        fallback = _static_fallback_response(Path(relative_path).name)
+        if fallback is not None:
+            return fallback
+
+    return await call_next(request)
 
 # Used by readiness checks to gate traffic until startup work is done.
 app.state.startup_complete = False
@@ -1503,6 +1768,7 @@ app.include_router(users.router, prefix='/api/v1/users', tags=['users'])
 
 app.include_router(channels.router, prefix='/api/v1/channels', tags=['channels'])
 app.include_router(chats.router, prefix='/api/v1/chats', tags=['chats'])
+app.include_router(hermes.router, prefix='/api/v1/hermes', tags=['hermes'])
 app.include_router(notes.router, prefix='/api/v1/notes', tags=['notes'])
 
 
@@ -2203,17 +2469,18 @@ async def get_app_latest_release_version(user=Depends(get_verified_user)):
         log.debug(f'Version update check is disabled, returning current version as latest version')
         return {'current': VERSION, 'latest': VERSION}
     try:
+        hermes_release_api = 'https://api.github.com/repos/MartinCampbell1/hermes-ui-audit-pack/releases/latest'
         timeout = aiohttp.ClientTimeout(total=1)
         async with aiohttp.ClientSession(timeout=timeout, trust_env=True) as session:
             async with session.get(
-                'https://api.github.com/repos/open-webui/open-webui/releases/latest',
+                hermes_release_api,
                 ssl=AIOHTTP_CLIENT_SESSION_SSL,
             ) as response:
                 response.raise_for_status()
                 data = await response.json()
-                latest_version = data['tag_name']
+                latest_version = str(data.get('tag_name') or '').lstrip('v') or VERSION
 
-                return {'current': VERSION, 'latest': latest_version[1:]}
+                return {'current': VERSION, 'latest': latest_version}
     except Exception as e:
         log.debug(e)
         return {'current': VERSION, 'latest': VERSION}
@@ -2460,7 +2727,7 @@ async def get_manifest_json():
         return {
             'name': app.state.WEBUI_NAME,
             'short_name': app.state.WEBUI_NAME,
-            'description': f'{app.state.WEBUI_NAME} is an open, extensible, user-friendly interface for AI that adapts to your workflow.',
+            'description': f'{app.state.WEBUI_NAME} is a workspace-first interface for AI sessions, tools, and files.',
             'start_url': '/',
             'display': 'standalone',
             'background_color': '#343541',

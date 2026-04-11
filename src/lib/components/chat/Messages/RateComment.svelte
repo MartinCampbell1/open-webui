@@ -3,6 +3,7 @@
 
 	import { createEventDispatcher, onMount, getContext } from 'svelte';
 	import { config, models, tags as _tags } from '$lib/stores';
+	import { HERMES_COMMUNITY_URL } from '$lib/constants';
 	import Tags from '$lib/components/common/Tags.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
@@ -256,7 +257,7 @@
 	{#if $config?.features.enable_community_sharing && message?.model}
 		<div class="mt-3 pt-3 border-t border-gray-100/30 dark:border-gray-850/30">
 			<a
-				href={`https://openwebui.com/models?q=${encodeURIComponent(message.model)}`}
+				href={HERMES_COMMUNITY_URL}
 				target="_blank"
 				class="flex cursor-pointer items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-850 w-full px-3 py-2 rounded-xl transition"
 			>

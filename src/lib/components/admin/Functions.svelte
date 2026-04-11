@@ -23,6 +23,7 @@
 	import Tooltip from '../common/Tooltip.svelte';
 	import ConfirmDialog from '../common/ConfirmDialog.svelte';
 	import { getModels } from '$lib/apis';
+	import { HERMES_COMMUNITY_URL } from '$lib/constants';
 	import FunctionMenu from './Functions/FunctionMenu.svelte';
 	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
 	import Switch from '../common/Switch.svelte';
@@ -100,30 +101,8 @@
 			.sort((a, b) => a.type.localeCompare(b.type) || a.name.localeCompare(b.name));
 	};
 	const shareHandler = async (func) => {
-		const item = await getFunctionById(localStorage.token, func.id).catch((error) => {
-			toast.error(`${error}`);
-			return null;
-		});
-
-		toast.success($i18n.t('Redirecting you to Open WebUI Community'));
-
-		const url = 'https://openwebui.com';
-
-		const tab = await window.open(`${url}/functions/create`, '_blank');
-
-		// Define the event handler function
-		const messageHandler = (event) => {
-			if (event.origin !== url) return;
-			if (event.data === 'loaded') {
-				tab.postMessage(JSON.stringify(item), '*');
-
-				// Remove the event listener after handling the message
-				window.removeEventListener('message', messageHandler);
-			}
-		};
-
-		window.addEventListener('message', messageHandler, false);
-		console.log(item);
+		toast.success($i18n.t('Opening Hermes community hub'));
+		window.open(HERMES_COMMUNITY_URL, '_blank', 'noopener,noreferrer');
 	};
 
 	const cloneHandler = async (func) => {
@@ -605,12 +584,12 @@
 		{#if $config?.features.enable_community_sharing}
 			<div class=" my-16">
 				<div class=" text-xl font-medium mb-1 line-clamp-1">
-					{$i18n.t('Made by Open WebUI Community')}
+					{$i18n.t('Made by the community')}
 				</div>
 
 				<a
 					class=" flex cursor-pointer items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-850 w-full mb-2 px-3.5 py-1.5 rounded-xl transition"
-					href="https://openwebui.com/functions"
+					href={HERMES_COMMUNITY_URL}
 					target="_blank"
 				>
 					<div class=" self-center">

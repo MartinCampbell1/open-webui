@@ -1,6 +1,12 @@
 import { APP_NAME } from '$lib/constants';
 import { type Writable, writable } from 'svelte/store';
 import type { ModelConfig } from '$lib/apis';
+import type {
+	HermesProfilesResponse,
+	HermesRuntime,
+	HermesSession,
+	HermesWorkspacesResponse
+} from '$lib/apis/hermes';
 import type { Banner } from '$lib/types';
 import type { Socket } from 'socket.io-client';
 import type { AudioQueue } from '$lib/utils/audio';
@@ -59,6 +65,8 @@ export const channelId = writable(null);
 
 export const chats = writable(null);
 export const pinnedChats = writable([]);
+export const hermesSessionsByChatId: Writable<Record<string, HermesSession>> = writable({});
+export const hermesRecentSessions: Writable<HermesSession[]> = writable([]);
 export const tags = writable([]);
 export const folders = writable([]);
 
@@ -96,6 +104,14 @@ export const showArchivedChats = writable(false);
 export const showChangelog = writable(false);
 
 export const showControls = writable(false);
+export type HermesControlsOpenTarget =
+	| 'workspace'
+	| 'context'
+	| 'sessions'
+	| 'profile'
+	| 'tasks'
+	| null;
+export const chatControlsOpenTarget: Writable<HermesControlsOpenTarget> = writable(null);
 export const showEmbeds = writable(false);
 export const showOverview = writable(false);
 export const showArtifacts = writable(false);
@@ -114,10 +130,78 @@ export const temporaryChatEnabled = writable(false);
 export const scrollPaginationEnabled = writable(false);
 export const currentChatPage = writable(1);
 
+export const hermesRuntimeStore: Writable<HermesRuntime | null> = writable(null);
+export const hermesWorkspacesStore: Writable<HermesWorkspacesResponse | null> = writable(null);
+export const hermesProfilesStore: Writable<HermesProfilesResponse | null> = writable(null);
+
+export const hermesContextLoaded = writable(false);
+export const hermesContextLoading = writable(false);
+export const hermesProfilesLoaded = writable(false);
+export const hermesProfilesLoading = writable(false);
+
 export const isLastActiveTab = writable(true);
 export const playingNotificationSound = writable(false);
 
 export type Model = OpenAIModel | OllamaModel;
+
+export interface WorkspacePanelStatus {
+	source: 'terminal' | 'pyodide' | 'stub';
+	currentPath?: string;
+	itemCount?: number;
+	visibleItemCount?: number;
+	linkedItemCount?: number;
+	selectedFile?: string | null;
+	selectedFileName?: string | null;
+	attachEnabled?: boolean;
+}
+
+export type HermesContextScope =
+	| 'workspace'
+	| 'profile'
+	| 'session'
+	| 'chat'
+	| 'run'
+	| 'available'
+	| 'attached'
+	| 'active'
+	| 'inherited'
+	| 'fallback';
+
+export type HermesScopeTone = 'default' | 'muted' | 'success' | 'warning' | 'danger';
+
+export type HermesScopeChip = {
+	id: string;
+	label: string;
+	scope: HermesContextScope;
+	tone?: HermesScopeTone;
+	clickTarget?: 'workspace' | 'session' | 'profile' | 'tasks' | 'memory' | 'skills';
+};
+
+export type HermesContextSummary = {
+	workspaceLabel: string;
+	workspacePath: string;
+	workspaceSource: WorkspacePanelStatus['source'] | 'hermes';
+	profileLabel: string;
+	sessionStateLabel: string;
+	sessionId: string | null;
+	targetId: string | null;
+
+	activeModelLabel: string;
+	modelSource: 'session' | 'profile' | 'fallback' | 'unknown';
+	browserFallbackModelLabel: string;
+
+	workspaceVisibleCount: number | null;
+	linkedFileCount: number | null;
+	generatedFileCount: number | null;
+	chatAttachedFileCount: number | null;
+	taskCount: number | null;
+
+	profileSkillCount: number | null;
+	profileMemoryEnabled: boolean | null;
+	userProfileEnabled: boolean | null;
+};
+
+export const hermesCurrentContextSummary: Writable<HermesContextSummary | null> = writable(null);
 
 type BaseModel = {
 	id: string;
