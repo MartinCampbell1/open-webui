@@ -130,7 +130,6 @@
 	let primaryTabs: PanelTab[] = [];
 	let inspectTabs: PanelTab[] = [];
 	let visibleTabs: PanelTab[] = [];
-	let activeTabInInspectGroup = false;
 	let showPrimaryContextSummary = false;
 	let showInspectContextSummary = false;
 	let derivedPendingApproval: Record<string, any> | null = null;
@@ -182,7 +181,6 @@
 		...(showTodosTab ? [{ id: 'todos', label: $i18n.t('Todos') }] : []),
 		...(showAdvancedTab ? [{ id: 'controls', label: $i18n.t('Advanced') }] : [])
 	] as PanelTab[];
-	$: activeTabInInspectGroup = inspectTabs.some((tab) => tab.id === activeTab);
 	$: visibleTabs = activeMode === 'inspect' ? inspectTabs : primaryTabs;
 	$: modeDescription = visibleTabs.map((tab) => tab.label).join(' · ');
 	$: showPrimaryContextSummary =
@@ -380,8 +378,12 @@
 		return getOperatorFallbackTab();
 	};
 
+	const isInspectTab = (tabId: PanelTabId): boolean => {
+		return inspectTabs.some((tab) => tab.id === tabId);
+	};
+
 	const ensureTabForMode = (mode: PanelMode, tabId: PanelTabId): PanelTabId => {
-		const tabIsInspect = inspectTabs.some((tab) => tab.id === tabId);
+		const tabIsInspect = isInspectTab(tabId);
 
 		if (mode === 'inspect') {
 			return tabIsInspect ? tabId : getInspectFallbackTab();
@@ -477,10 +479,10 @@
 	$: if (!showTasksTab && activeTab === 'tasks') activeTab = getOperatorFallbackTab();
 	$: if (!showTodosTab && activeTab === 'todos') activeTab = getOperatorFallbackTab();
 	$: if (!showAdvancedTab && activeTab === 'controls') activeTab = getOperatorFallbackTab();
-	$: if (activeMode === 'operator' && activeTabInInspectGroup) {
+	$: if (activeMode === 'operator' && isInspectTab(activeTab)) {
 		activeTab = getOperatorFallbackTab();
 	}
-	$: if (activeMode === 'inspect' && !activeTabInInspectGroup && inspectTabs.length > 0) {
+	$: if (activeMode === 'inspect' && !isInspectTab(activeTab) && inspectTabs.length > 0) {
 		activeTab = getInspectFallbackTab();
 	}
 	$: if (controlsContextKey !== lastControlsContextKey) {
@@ -527,7 +529,7 @@
 			(requestedTab === 'tasks' && showTasksTab)
 		) {
 			activeTab = requestedTab;
-			setActiveMode(inspectTabs.some((tab) => tab.id === requestedTab) ? 'inspect' : 'operator');
+			setActiveMode(isInspectTab(requestedTab) ? 'inspect' : 'operator');
 		}
 
 		chatControlsOpenTarget.set(null);
