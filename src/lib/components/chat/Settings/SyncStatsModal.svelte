@@ -370,12 +370,12 @@
 
 			<div class="px-5 pt-2 pb-5">
 				<div class="text-sm text-gray-500 dark:text-gray-400">
-					{$i18n.t('Do you want to sync your usage stats with Open WebUI Community?')}
+					{$i18n.t('Do you want to sync your usage stats with Hermes?')}
 				</div>
 
 				<div class="mt-2 text-xs text-gray-500">
 					{$i18n.t(
-						'Participate in community leaderboards and evaluations! Syncing aggregated usage stats helps drive research and improvements to Open WebUI. Your privacy is paramount: no message content is ever shared.'
+						'Syncing aggregated usage stats helps improve Hermes. Your privacy is paramount: no message content is ever shared.'
 					)}
 				</div>
 

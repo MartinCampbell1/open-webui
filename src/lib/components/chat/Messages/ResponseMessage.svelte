@@ -62,10 +62,28 @@
 	import RegenerateMenu from './ResponseMessage/RegenerateMenu.svelte';
 	import StatusHistory from './ResponseMessage/StatusHistory.svelte';
 	import FullHeightIframe from '$lib/components/common/FullHeightIframe.svelte';
+	import HermesApprovalCard from '$lib/components/hermes/transcript/HermesApprovalCard.svelte';
+	import HermesOperationalBlock from '$lib/components/hermes/transcript/HermesOperationalBlock.svelte';
+	import {
+		getHermesApprovalSummary,
+		getHermesVisibleStatusEntries
+	} from '$lib/utils/hermesTranscript';
+
+	type HermesApprovalResolution = 'once' | 'session' | 'always' | 'deny';
+	type HermesApprovalState = {
+		title: string;
+		description?: string;
+		riskLevel?: 'low' | 'medium' | 'high';
+		state: 'pending' | 'resolved';
+		resolution?: HermesApprovalResolution;
+		interactive?: boolean;
+	};
 
 	interface MessageType {
 		id: string;
 		model: string;
+		modelName?: string;
+		selectedModelId?: string;
 		content: string;
 		files?: { type: string; url: string }[];
 		timestamp: number;
@@ -112,9 +130,12 @@
 			usage?: unknown;
 		};
 		annotation?: { type: string; rating: number };
+		feedbackId?: string;
+		hermesApproval?: HermesApprovalState;
 	}
 
 	export let chatId = '';
+	export let chatHermesSession: Record<string, any> | null = null;
 	export let history;
 	export let messageId;
 	export let selectedModels = [];
@@ -153,6 +174,7 @@
 	export let regenerateResponse: Function;
 
 	export let addMessages: Function;
+	export let respondToApproval: Function = () => {};
 
 	export let isLastMessage = true;
 	export let readOnly = false;
@@ -167,12 +189,68 @@
 
 	let model = null;
 	$: model = $models.find((m) => m.id === message.model);
+	$: isHermesChat =
+		!!chatHermesSession &&
+		typeof chatHermesSession === 'object' &&
+		Object.keys(chatHermesSession).length > 0;
+	$: hermesInheritedModelName =
+		(isHermesChat ? chatHermesSession?.model : null) ?? model?.name ?? message.model ?? '';
+	$: displayModelName = isHermesChat ? 'Hermes' : (message.modelName ?? model?.name ?? message.model);
+	$: inheritedModelName = isHermesChat
+		? hermesInheritedModelName && hermesInheritedModelName !== displayModelName
+			? hermesInheritedModelName
+			: ''
+		: message.modelName && message.modelName !== (model?.name ?? message.model)
+			? (model?.name ?? message.model)
+			: '';
+	$: displayModelTooltip = inheritedModelName
+		? $i18n.t('{{AGENT}} · inherited model: {{MODEL}}', {
+				AGENT: displayModelName,
+				MODEL: inheritedModelName
+			})
+		: displayModelName;
 
-	$: statusEntries = message?.statusHistory ?? [...(message?.status ? [message?.status] : [])];
+	$: statusEntries = getHermesVisibleStatusEntries(message);
 	$: hasVisibleStatus =
 		(model?.info?.meta?.capabilities?.status_updates ?? true) &&
 		statusEntries.length > 0 &&
 		!(statusEntries.at(-1)?.hidden ?? false);
+	$: toolActivityCount = message?.code_executions?.length ?? 0;
+	$: hasOperationalActivity = hasVisibleStatus || toolActivityCount > 0;
+	$: hasApproval = !!message?.hermesApproval;
+	$: approvalMeta = hasApproval ? getHermesApprovalSummary(message.hermesApproval) : '';
+	$: operationalSectionCount = [hasApproval, hasVisibleStatus, toolActivityCount > 0].filter(
+		Boolean
+	).length;
+	$: activityMeta = [
+		approvalMeta || null,
+		statusEntries.length > 0
+			? statusEntries.length === 1
+				? $i18n.t('1 status update')
+				: $i18n.t('{{COUNT}} status updates', { COUNT: statusEntries.length })
+			: null,
+		toolActivityCount > 0
+			? toolActivityCount === 1
+				? $i18n.t('1 tool activity')
+				: $i18n.t('{{COUNT}} tool activities', { COUNT: toolActivityCount })
+			: null
+	]
+		.filter(Boolean)
+		.join(' • ');
+	$: statusMeta =
+		statusEntries.length > 1
+			? $i18n.t('{{COUNT}} status updates', { COUNT: statusEntries.length })
+			: statusEntries.length === 1
+				? $i18n.t('1 status update')
+				: '';
+	$: toolsMeta =
+		toolActivityCount > 1
+			? $i18n.t('{{COUNT}} tool activities', { COUNT: toolActivityCount })
+			: toolActivityCount === 1
+				? $i18n.t('1 tool activity')
+				: '';
+	$: operationalTitle =
+		hasApproval || hasOperationalActivity ? $i18n.t('Trust layer') : '';
 
 	let edit = false;
 	let editedContent = '';
@@ -493,7 +571,7 @@
 				toast.error(`${error}`);
 			});
 
-			if (feedback) {
+			if (feedback?.id) {
 				updatedMessage.feedbackId = feedback.id;
 			}
 		}
@@ -521,13 +599,15 @@
 					feedbackItem.data.tags = tags;
 
 					saveMessage(message.id, updatedMessage);
-					await updateFeedbackById(
-						localStorage.token,
-						updatedMessage.feedbackId,
-						feedbackItem
-					).catch((error) => {
-						toast.error(`${error}`);
-					});
+					if (updatedMessage.feedbackId) {
+						await updateFeedbackById(
+							localStorage.token,
+							updatedMessage.feedbackId,
+							feedbackItem
+						).catch((error) => {
+							toast.error(`${error}`);
+						});
+					}
 				}
 			}
 		}
@@ -637,9 +717,9 @@
 
 		<div class="flex-auto w-0 pl-1 relative">
 			<Name>
-				<Tooltip content={model?.name ?? message.model} placement="top-start">
+				<Tooltip content={displayModelTooltip} placement="top-start">
 					<span id="response-message-model-name" class="line-clamp-1 text-black dark:text-white">
-						{model?.name ?? message.model}
+						{displayModelName}
 					</span>
 				</Tooltip>
 
@@ -665,10 +745,6 @@
 			<div>
 				<div class="chat-{message.role} w-full min-w-full markdown-prose">
 					<div>
-						{#if model?.info?.meta?.capabilities?.status_updates ?? true}
-							<StatusHistory statusHistory={message?.statusHistory} />
-						{/if}
-
 						{#if message?.files && message.files?.filter((f) => f.type === 'image').length > 0}
 							<div
 								class="my-1 w-full flex overflow-x-auto gap-2 flex-wrap"
@@ -785,7 +861,7 @@
 							class="w-full flex flex-col relative {edit ? 'hidden' : ''}"
 							id="response-content-container"
 						>
-							{#if message.content === '' && !message.done && !message.error && !hasVisibleStatus}
+							{#if message.content === '' && !message.done && !message.error && !hasOperationalActivity && !message?.hermesApproval}
 								<Skeleton />
 							{:else if message.content && message.error !== true}
 								<!-- always show message contents even if there's an error -->
@@ -844,11 +920,78 @@
 									{readOnly}
 								/>
 							{/if}
-
-							{#if message.code_executions}
-								<CodeExecutions codeExecutions={message.code_executions} />
-							{/if}
 						</div>
+
+						{#if hasApproval || hasOperationalActivity}
+							<HermesOperationalBlock
+								busy={!message.done}
+								title={operationalTitle}
+								meta={activityMeta}
+							>
+								{#if hasApproval}
+									<div>
+										{#if operationalSectionCount > 1}
+											<div
+												class="mb-1.5 flex items-center justify-between gap-2 px-0.5 text-[11px] font-medium text-gray-400 dark:text-gray-500"
+											>
+												<span>{$i18n.t('Approval')}</span>
+												{#if approvalMeta}
+													<span>{approvalMeta}</span>
+												{/if}
+											</div>
+										{/if}
+										<HermesApprovalCard
+											embedded={true}
+											approval={message.hermesApproval}
+											disabled={readOnly || !(message?.hermesApproval?.interactive ?? false)}
+											onResolve={(resolution) => {
+												respondToApproval(message.id, resolution);
+											}}
+										/>
+									</div>
+								{/if}
+
+								{#if model?.info?.meta?.capabilities?.status_updates ?? true}
+									<div
+										class={hasApproval
+											? 'border-t border-gray-100/70 pt-2 dark:border-gray-800/70'
+											: ''}
+									>
+										{#if operationalSectionCount > 1}
+											<div
+												class="mb-1.5 flex items-center justify-between gap-2 px-0.5 text-[11px] font-medium text-gray-400 dark:text-gray-500"
+											>
+												<span>{$i18n.t('Status')}</span>
+												{#if statusMeta}
+													<span>{statusMeta}</span>
+												{/if}
+											</div>
+										{/if}
+										<StatusHistory statusHistory={statusEntries} compact={true} />
+									</div>
+								{/if}
+
+								{#if toolActivityCount > 0}
+									<div
+										class={hasApproval || hasVisibleStatus
+											? 'border-t border-gray-100/70 pt-2 dark:border-gray-800/70'
+											: ''}
+									>
+										{#if operationalSectionCount > 1}
+											<div
+												class="mb-1.5 flex items-center justify-between gap-2 px-0.5 text-[11px] font-medium text-gray-400 dark:text-gray-500"
+											>
+												<span>{$i18n.t('Tools')}</span>
+												{#if toolsMeta}
+													<span>{toolsMeta}</span>
+												{/if}
+											</div>
+										{/if}
+										<CodeExecutions codeExecutions={message.code_executions} compact={true} />
+									</div>
+								{/if}
+							</HermesOperationalBlock>
+						{/if}
 					</div>
 				</div>
 

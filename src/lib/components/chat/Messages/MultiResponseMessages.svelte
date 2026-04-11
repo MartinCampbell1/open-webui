@@ -23,6 +23,7 @@
 	dayjs.extend(localizedFormat);
 
 	export let chatId;
+	export let chatHermesSession: Record<string, any> | null = null;
 	export let history;
 	export let messageId;
 	export let selectedModels = [];
@@ -46,6 +47,7 @@
 	export let mergeResponses: Function;
 
 	export let addMessages: Function;
+	export let respondToApproval: Function = () => {};
 
 	export let triggerScroll: Function;
 
@@ -296,6 +298,7 @@
 								<ResponseMessage
 									{chatId}
 									{history}
+									{chatHermesSession}
 									messageId={message?.id}
 									{selectedModels}
 									isLastMessage={true}
@@ -319,6 +322,7 @@
 											groupedMessageIds[selectedModelIdx].messageIds.length - 1;
 									}}
 									{addMessages}
+									{respondToApproval}
 									{readOnly}
 									{topPadding}
 								/>
@@ -352,6 +356,7 @@
 									<ResponseMessage
 										{chatId}
 										{history}
+										{chatHermesSession}
 										messageId={_messageId}
 										{selectedModels}
 										isLastMessage={true}
@@ -369,15 +374,16 @@
 										{submitMessage}
 										{continueResponse}
 										regenerateResponse={async (message, prompt = null) => {
-											regenerateResponse(message, prompt);
-											await tick();
-											groupedMessageIdsIdx[modelIdx] =
-												groupedMessageIds[modelIdx].messageIds.length - 1;
-										}}
-										{addMessages}
-										{readOnly}
-										{editCodeBlock}
-										{topPadding}
+										regenerateResponse(message, prompt);
+										await tick();
+										groupedMessageIdsIdx[modelIdx] =
+											groupedMessageIds[modelIdx].messageIds.length - 1;
+									}}
+									{addMessages}
+									{respondToApproval}
+									{readOnly}
+									{editCodeBlock}
+									{topPadding}
 									/>
 								{/if}
 							{/key}

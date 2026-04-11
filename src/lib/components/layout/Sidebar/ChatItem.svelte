@@ -22,6 +22,7 @@
 		chatId,
 		chatTitle as _chatTitle,
 		chats,
+		hermesSessionsByChatId,
 		mobile,
 		pinnedChats,
 		showSidebar,
@@ -44,12 +45,22 @@
 	import Sparkles from '$lib/components/icons/Sparkles.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { generateTitle } from '$lib/apis';
+	import { createMessagesList } from '$lib/utils';
+	import {
+		buildHermesSessionSummaryFromMessages,
+		formatHermesChatSidebarMetaLine,
+		getResolvedHermesSessionContext
+	} from '$lib/utils/hermesSessions';
 
 	export let className = '';
 
 	export let id;
 	export let title;
 	export let createdAt: number | null = null;
+	export let updatedAt: number | null = null;
+	export let activityUpdatedAt: number | null = null;
+	export let meta: Record<string, any> | null = null;
+	export let sessionSummary: Record<string, any> | null = null;
 
 	export let selected = false;
 	export let shiftKey = false;
@@ -76,16 +87,79 @@
 	}
 
 	let chat = null;
+	let chatLoading = false;
 
 	let mouseOver = false;
 
-	const loadChat = async () => {
-		if (!chat) {
-			draggable = false;
-			chat = await getChatById(localStorage.token, id);
-			draggable = true;
+	$: isRunning = $activeChatIds.has(id);
+	$: isCurrentChat = id === $chatId;
+	$: activityTimestamp = activityUpdatedAt ?? updatedAt ?? createdAt;
+
+	const getHistoryMessages = (chat) => {
+		const history = chat?.chat?.history;
+		if (history?.messages && typeof history.messages === 'object') {
+			if (history.currentId !== null && history.currentId !== undefined) {
+				return createMessagesList(history, history.currentId);
+			}
+
+			return Object.values(history.messages);
+		}
+
+		return Array.isArray(chat?.chat?.messages) ? chat.chat.messages : [];
+	};
+
+	$: sessionMessages = getHistoryMessages(chat);
+	$: hermesSidebarSession = $hermesSessionsByChatId[id] ?? null;
+	$: hermesSessionMeta = getResolvedHermesSessionContext({
+		session: hermesSidebarSession,
+		meta: meta ?? chat?.meta ?? null,
+		chatPayload: chat?.chat ?? null
+	});
+	$: hermesStateBadges = [
+		isRunning
+			? { label: $i18n.t('Running'), kind: 'running' }
+			: isCurrentChat
+				? { label: $i18n.t('Current'), kind: 'current' }
+				: null,
+		hermesSidebarSession?.imported_chat_id
+			? { label: $i18n.t('Imported'), kind: 'imported' }
+			: null
+	].filter(Boolean);
+	$: fallbackSessionSummary = buildHermesSessionSummaryFromMessages(sessionMessages);
+	$: resolvedSessionSummary = sessionSummary ?? fallbackSessionSummary;
+	$: sessionMetaLine = formatHermesChatSidebarMetaLine({
+		summary: resolvedSessionSummary,
+		session: hermesSidebarSession,
+		translate: $i18n.t
+	});
+	$: showActivityLine = isCurrentChat || isRunning || selected || mouseOver;
+	$: showSessionMeta = !!sessionMetaLine && (isCurrentChat || isRunning || selected || mouseOver);
+
+	const loadChat = async (force = false) => {
+		if ((!force && chat) || chatLoading) {
+			return;
+		}
+
+		chatLoading = true;
+
+		try {
+			const loadedChat = await getChatById(localStorage.token, id);
+			if (loadedChat) {
+				chat = loadedChat;
+			}
+		} finally {
+			chatLoading = false;
 		}
 	};
+
+	$: if (
+		(isCurrentChat || isRunning || selected) &&
+		(!chat || chat?.updated_at !== updatedAt) &&
+		(!sessionSummary || !hermesSessionMeta) &&
+		!chatLoading
+	) {
+		loadChat(!!chat && chat?.updated_at !== updatedAt);
+	}
 
 	let showShareChatModal = false;
 	let confirmEdit = false;
@@ -418,7 +492,7 @@
 	{:else}
 		<a
 			id="sidebar-chat-item"
-			class=" w-full flex justify-between rounded-xl px-[11px] py-[6px] {id === $chatId ||
+			class=" w-full flex justify-between rounded-xl px-[11px] py-[7px] {id === $chatId ||
 			confirmEdit
 				? 'bg-gray-100 dark:bg-gray-900 selected'
 				: selected
@@ -452,25 +526,47 @@
 			on:focus={(e) => {}}
 			draggable="false"
 		>
-			<!-- Loading spinner for active chat (left side) -->
-			{#if $activeChatIds.has(id)}
-				<div class="shrink-0 self-center pr-2">
-					<Spinner className="size-3" />
-				</div>
-			{/if}
+			<div class="flex flex-1 min-w-0 pr-5">
+				<div class="flex min-w-0 flex-col">
+					<div
+						dir="auto"
+						class="text-left overflow-hidden w-full truncate leading-[1.15rem] {isCurrentChat ||
+						isRunning
+							? 'font-medium text-gray-900 dark:text-gray-100'
+							: ''}"
+					>
+						{title}
+					</div>
 
-			<div class="flex self-center flex-1 w-full min-w-0">
-				<div dir="auto" class="text-left self-center overflow-hidden w-full h-[20px] truncate">
-					{title}
-				</div>
-			</div>
+						{#if showActivityLine || showSessionMeta}
+							<div
+								class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-none text-gray-400 dark:text-gray-500"
+							>
+								{#each hermesStateBadges as badge}
+									<div
+										class="inline-flex items-center gap-1 rounded-full bg-white/80 px-1.5 py-0.5 font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+									>
+										{#if badge.kind === 'running'}
+											<Spinner className="size-2.5" />
+										{:else if badge.kind === 'current'}
+											<span class="inline-flex size-1.5 rounded-full bg-gray-400 dark:bg-gray-500"
+											></span>
+										{/if}
+										<span>{badge.label}</span>
+									</div>
+								{/each}
 
-			<!-- Time ago indicator -->
-			{#if createdAt && !mouseOver}
-				<div class="shrink-0 self-center text-[10px] text-gray-400 dark:text-gray-500 pl-2">
-					{formatTimeAgo(createdAt)}
+								{#if activityTimestamp}
+									<span class="truncate">{formatTimeAgo(activityTimestamp)}</span>
+								{/if}
+
+								{#if showSessionMeta && sessionMetaLine}
+									<span class="truncate">{sessionMetaLine}</span>
+								{/if}
+							</div>
+						{/if}
+					</div>
 				</div>
-			{/if}
 		</a>
 	{/if}
 
@@ -587,6 +683,7 @@
 					<!-- Shortcut support using "delete-chat-button" id -->
 					<button
 						id="delete-chat-button"
+						aria-label={$i18n.t('Delete chat')}
 						class="hidden"
 						on:click={() => {
 							showDeleteConfirm = true;

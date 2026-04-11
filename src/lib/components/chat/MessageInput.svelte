@@ -111,6 +111,7 @@
 	export let autoScroll = false;
 	export let generating = false;
 	export let uploadPending = false;
+	export let hermesMode = false;
 
 	export let atSelectedModel: Model | undefined = undefined;
 	export let selectedModels: [''];
@@ -455,14 +456,23 @@
 	export let placeholder = '';
 
 	let visionCapableModels = [];
-	$: visionCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
-		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
-	);
+	$: visionCapableModels = hermesMode
+		? atSelectedModel?.id
+			? [atSelectedModel.id]
+			: selectedModels
+		: (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
+				(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.vision ?? true
+			);
 
 	let fileUploadCapableModels = [];
-	$: fileUploadCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
-		(model) => $models.find((m) => m.id === model)?.info?.meta?.capabilities?.file_upload ?? true
-	);
+	$: fileUploadCapableModels = hermesMode
+		? atSelectedModel?.id
+			? [atSelectedModel.id]
+			: selectedModels
+		: (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
+				(model) =>
+					$models.find((m) => m.id === model)?.info?.meta?.capabilities?.file_upload ?? true
+			);
 
 	let webSearchCapableModels = [];
 	$: webSearchCapableModels = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).filter(
@@ -486,15 +496,29 @@
 	);
 
 	let toggleFilters = [];
-	$: toggleFilters = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels)
-		.map((id) => ($models.find((model) => model.id === id) || {})?.filters ?? [])
-		.reduce((acc, filters) => acc.filter((f1) => filters.some((f2) => f2.id === f1.id)));
+	$: {
+		if (hermesMode) {
+			toggleFilters = [];
+		} else {
+			const filterGroups = (atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).map(
+				(id) => ($models.find((model) => model.id === id) || {})?.filters ?? []
+			);
+
+			toggleFilters =
+				filterGroups.length > 0
+					? filterGroups.reduce((acc, filters) =>
+							acc.filter((f1) => filters.some((f2) => f2.id === f1.id))
+						)
+					: [];
+		}
+	}
 
 	let showToolsButton = false;
 	$: showToolsButton = ($tools ?? []).length > 0 || ($toolServers ?? []).length > 0;
 
 	let showWebSearchButton = false;
 	$: showWebSearchButton =
+		!hermesMode &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			webSearchCapableModels.length &&
 		$config?.features?.enable_web_search &&
@@ -502,6 +526,7 @@
 
 	let showImageGenerationButton = false;
 	$: showImageGenerationButton =
+		!hermesMode &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			imageGenerationCapableModels.length &&
 		$config?.features?.enable_image_generation &&
@@ -509,11 +534,27 @@
 
 	let showCodeInterpreterButton = false;
 	$: showCodeInterpreterButton =
+		!hermesMode &&
 		!$selectedTerminalId &&
 		(atSelectedModel?.id ? [atSelectedModel.id] : selectedModels).length ===
 			codeInterpreterCapableModels.length &&
 		$config?.features?.enable_code_interpreter &&
 		($_user.role === 'admin' || $_user?.permissions?.features?.code_interpreter);
+
+	$: if (hermesMode) {
+		if (selectedFilterIds.length > 0) {
+			selectedFilterIds = [];
+		}
+		if (webSearchEnabled) {
+			webSearchEnabled = false;
+		}
+		if (imageGenerationEnabled) {
+			imageGenerationEnabled = false;
+		}
+		if (codeInterpreterEnabled) {
+			codeInterpreterEnabled = false;
+		}
+	}
 
 	// Disable code interpreter when terminal is active (mutually exclusive)
 	$: if ($selectedTerminalId && codeInterpreterEnabled) {
@@ -572,7 +613,7 @@
 			return null;
 		}
 
-		if (fileUploadCapableModels.length !== selectedModels.length) {
+		if (!hermesMode && fileUploadCapableModels.length !== selectedModels.length) {
 			toast.error($i18n.t('Model(s) do not support file upload'));
 			return null;
 		}
@@ -714,7 +755,7 @@
 			}
 
 			if (file['type'].startsWith('image/')) {
-				if (visionCapableModels.length === 0) {
+				if (!hermesMode && visionCapableModels.length === 0) {
 					toast.error($i18n.t('Selected model(s) do not support image inputs'));
 					return;
 				}
@@ -1287,7 +1328,7 @@
 														alt=""
 														imageClassName=" size-10 rounded-xl object-cover"
 													/>
-													{#if atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length}
+													{#if !hermesMode && (atSelectedModel ? visionCapableModels.length === 0 : selectedModels.length !== visionCapableModels.length)}
 														<Tooltip
 															className=" absolute top-1 left-1"
 															content={$i18n.t('{{ models }}', {
@@ -1564,6 +1605,7 @@
 								<div class="ml-1 self-end flex items-center flex-1 max-w-[80%]">
 									<InputMenu
 										bind:files
+										{hermesMode}
 										selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 										{fileUploadCapableModels}
 										{screenCaptureHandler}
@@ -1628,6 +1670,7 @@
 										/>
 
 										<IntegrationsMenu
+											{hermesMode}
 											selectedModels={atSelectedModel ? [atSelectedModel.id] : selectedModels}
 											{toggleFilters}
 											{showWebSearchButton}
@@ -1662,7 +1705,7 @@
 										</IntegrationsMenu>
 									{/if}
 
-									{#if selectedModelIds.length === 1 && $models.find((m) => m.id === selectedModelIds[0])?.has_user_valves}
+									{#if !hermesMode && selectedModelIds.length === 1 && $models.find((m) => m.id === selectedModelIds[0])?.has_user_valves}
 										<div class="ml-1 flex gap-1.5">
 											<Tooltip content={$i18n.t('Valves')} placement="top">
 												<button
@@ -1853,7 +1896,7 @@
 											</Tooltip>
 										</div>
 									{:else}
-										{#if prompt !== '' && !history?.currentId && !$selectedTerminalId && ($config?.features?.enable_notes ?? false) && ($_user?.role === 'admin' || ($_user?.permissions?.features?.notes ?? true))}
+										{#if !hermesMode && prompt !== '' && !history?.currentId && !$selectedTerminalId && ($config?.features?.enable_notes ?? false) && ($_user?.role === 'admin' || ($_user?.permissions?.features?.notes ?? true))}
 											<!-- {$i18n.t('Create Note')}  -->
 											<Tooltip content={$i18n.t('Create note')} className=" flex items-center">
 												<button
@@ -1927,7 +1970,7 @@
 											{/if}
 										{/if}
 
-										{#if prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
+										{#if !hermesMode && prompt === '' && files.length === 0 && ($_user?.role === 'admin' || ($_user?.permissions?.chat?.call ?? true))}
 											<div class=" flex items-center">
 												<!-- {$i18n.t('Call')} -->
 												<Tooltip content={$i18n.t('Voice mode')}>

@@ -16,7 +16,15 @@
 	import SensitiveInput from '$lib/components/common/SensitiveInput.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import { WEBUI_BUILD_HASH, WEBUI_VERSION } from '$lib/constants';
+	import {
+		HERMES_COMMUNITY_URL,
+		HERMES_DOCS_URL,
+		HERMES_RELEASES_URL,
+		HERMES_REPO_URL,
+		HERMES_SUPPORT_URL,
+		WEBUI_BUILD_HASH,
+		WEBUI_VERSION
+	} from '$lib/constants';
 	import { banners as _banners, config, showChangelog } from '$lib/stores';
 	import type { Banner } from '$lib/types';
 	import { compareVersion } from '$lib/utils';
@@ -162,7 +170,7 @@
 
 									{#if $config?.features?.enable_version_update_check}
 										<a
-											href="https://github.com/open-webui/open-webui/releases/tag/v{version.latest}"
+											href={HERMES_RELEASES_URL}
 											target="_blank"
 										>
 											{updateAvailable === null
@@ -206,42 +214,35 @@
 									{$i18n.t('Help')}
 								</div>
 								<div class=" text-xs text-gray-500">
-									{$i18n.t('Discover how to use Open WebUI and seek support from the community.')}
+									{$i18n.t('Discover how to use Hermes and seek support from the community.')}
 								</div>
 							</div>
 
 							<a
 								class="flex-shrink-0 text-xs font-medium underline"
-								href="https://docs.openwebui.com/"
+								href={HERMES_DOCS_URL}
 								target="_blank"
 							>
 								{$i18n.t('Documentation')}
 							</a>
 						</div>
 
-						<div class="mt-1">
-							<div class="flex space-x-1">
-								<a href="https://discord.gg/5rJgQTnV4s" target="_blank">
-									<img
-										alt="Discord"
-										src="https://img.shields.io/badge/Discord-Open_WebUI-blue?logo=discord&logoColor=white"
-									/>
-								</a>
+						<div class="mt-1 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+							<a class="underline" href={HERMES_COMMUNITY_URL} target="_blank">
+								{$i18n.t('Community')}
+							</a>
 
-								<a href="https://twitter.com/OpenWebUI" target="_blank">
-									<img
-										alt="X (formerly Twitter) Follow"
-										src="https://img.shields.io/twitter/follow/OpenWebUI"
-									/>
-								</a>
+							<a class="underline" href={HERMES_REPO_URL} target="_blank">
+								{$i18n.t('GitHub')}
+							</a>
 
-								<a href="https://github.com/open-webui/open-webui" target="_blank">
-									<img
-										alt="Github Repo"
-										src="https://img.shields.io/github/stars/open-webui/open-webui?style=social&label=Star us on Github"
-									/>
-								</a>
-							</div>
+							<a class="underline" href={HERMES_SUPPORT_URL} target="_blank">
+								{$i18n.t('Support')}
+							</a>
+
+							<a class="underline" href="https://twitter.com/OpenWebUI" target="_blank">
+								{$i18n.t('Updates')}
+							</a>
 						</div>
 					</div>
 
@@ -254,7 +255,7 @@
 
 								{#if $config?.license_metadata}
 									<a
-										href="https://docs.openwebui.com/enterprise"
+										href={HERMES_DOCS_URL}
 										target="_blank"
 										class="text-gray-500 mt-0.5"
 									>
@@ -279,7 +280,7 @@
 								{:else}
 									<a
 										class=" text-xs hover:underline"
-										href="https://docs.openwebui.com/enterprise"
+										href={HERMES_DOCS_URL}
 										target="_blank"
 									>
 										<span class="text-gray-500">
@@ -421,7 +422,7 @@
 
 								<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
 									<a
-										href="https://docs.openwebui.com/reference/api-endpoints"
+										href={HERMES_DOCS_URL}
 										target="_blank"
 										class=" text-gray-300 font-medium underline"
 									>
@@ -462,7 +463,7 @@
 										<span class=" font-medium">{$i18n.t('Warning')}:</span>
 										<span
 											><a
-												href="https://docs.openwebui.com/reference/env-configuration#jwt_expires_in"
+												href={HERMES_DOCS_URL}
 												target="_blank"
 												class=" underline"
 												>{$i18n.t('No expiration can pose security risks.')}
@@ -792,7 +793,7 @@
 
 					<div class="mb-2.5 w-full justify-between">
 						<div class="flex w-full justify-between">
-							<div class=" self-center text-xs font-medium">{$i18n.t('WebUI URL')}</div>
+							<div class=" self-center text-xs font-medium">{$i18n.t('Hermes URL')}</div>
 						</div>
 
 						<div class="flex mt-2 space-x-2">
@@ -806,7 +807,7 @@
 
 						<div class="mt-2 text-xs text-gray-400 dark:text-gray-500">
 							{$i18n.t(
-								'Enter the public URL of your WebUI. This URL will be used to generate links in the notifications.'
+								'Enter the public URL of Hermes. This URL will be used to generate links in the notifications.'
 							)}
 						</div>
 					</div>

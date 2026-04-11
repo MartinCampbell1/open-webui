@@ -4,14 +4,16 @@
 	import Folder from '../../icons/Folder.svelte';
 	import NewFolderAlt from '../../icons/NewFolderAlt.svelte';
 	import FilePlusAlt from '../../icons/FilePlusAlt.svelte';
+	import Search from '../../icons/Search.svelte';
 	import Spinner from '../../common/Spinner.svelte';
 	import Tooltip from '../../common/Tooltip.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n = getContext<any>('i18n');
 
 	export let breadcrumbs: { label: string; path: string }[] = [];
 	export let selectedFile: string | null = null;
 	export let loading = false;
+	export let filterQuery = '';
 
 	export let onNavigate: (path: string) => void = () => {};
 	export let onRefresh: () => void = () => {};
@@ -20,6 +22,7 @@
 	export let onUploadFiles: (files: File[]) => void = () => {};
 	export let onDownloadDir: () => void = () => {};
 	export let onMove: (source: string, destFolder: string) => void = () => {};
+	export let onFilterChange: (value: string) => void = () => {};
 
 	// Back / forward navigation
 	export let canGoBack = false;
@@ -138,6 +141,22 @@
 			</span>
 		{/if}
 	</div>
+
+	{#if !selectedFile}
+		<div
+			class="hidden md:flex items-center rounded-lg bg-gray-50 dark:bg-gray-900/70 px-2 py-1 min-w-28 max-w-40"
+		>
+			<div class="mr-1.5 text-gray-400 dark:text-gray-500">
+				<Search className="size-3" />
+			</div>
+			<input
+				class="w-full bg-transparent text-[11px] outline-hidden text-gray-600 dark:text-gray-300"
+				placeholder={$i18n.t('Search')}
+				value={filterQuery}
+				on:input={(e) => onFilterChange((e.currentTarget as HTMLInputElement).value)}
+			/>
+		</div>
+	{/if}
 
 	<Tooltip content={$i18n.t('Refresh')}>
 		<button

@@ -27,7 +27,11 @@
 		selectedFolder,
 		WEBUI_NAME,
 		sidebarWidth,
-		activeChatIds
+		activeChatIds,
+		chatControlsOpenTarget,
+		hermesRecentSessions,
+		hermesSessionsByChatId,
+		showControls
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
@@ -44,11 +48,13 @@
 	} from '$lib/apis/chats';
 	import { createNewFolder, getFolders, updateFolderParentIdById } from '$lib/apis/folders';
 	import { checkActiveChats } from '$lib/apis/tasks';
+	import { importHermesSession } from '$lib/apis/hermes';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import ArchivedChatsModal from './ArchivedChatsModal.svelte';
 	import UserMenu from './Sidebar/UserMenu.svelte';
 	import ChatItem from './Sidebar/ChatItem.svelte';
+	import HermesSessionItem from './Sidebar/HermesSessionItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
 	import Folder from '../common/Folder.svelte';
@@ -66,6 +72,12 @@
 	import Note from '../icons/Note.svelte';
 	import { slide } from 'svelte/transition';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
+	import {
+		buildHermesAwareChatList,
+		getRecentVisibleHermesSessions,
+		refreshHermesSessionStores,
+		type HermesSessionListItem
+	} from '$lib/utils/hermesSessions';
 
 	const BREAKPOINT = 768;
 
@@ -82,6 +94,14 @@
 	let allChatsLoaded = false;
 
 	let showCreateFolderModal = false;
+	let hermesSidebarSessionsLoading = false;
+	let hermesSidebarSessionsRefreshQueued = false;
+	let hermesSidebarSessionActionId: string | null = null;
+	let totalVisibleHermesSidebarSessions = 0;
+	let recentHermesSidebarSessions: HermesSessionListItem[] = [];
+	let showHermesSidebarSessions = true;
+	let orderedPinnedChats = [];
+	let orderedChats = [];
 
 	let pinnedModels = [];
 
@@ -138,6 +158,32 @@
 				folders[folder.parent_id].childrenIds.sort((a, b) => {
 					return folders[b].updated_at - folders[a].updated_at;
 				});
+			}
+		}
+	};
+
+	const loadHermesSidebarSessions = async () => {
+		if (!$showSidebar || !localStorage?.token) {
+			return;
+		}
+
+		if (hermesSidebarSessionsLoading) {
+			hermesSidebarSessionsRefreshQueued = true;
+			return;
+		}
+
+		hermesSidebarSessionsLoading = true;
+
+		try {
+			await refreshHermesSessionStores(localStorage.token);
+		} catch (error) {
+			console.debug('Failed to refresh Hermes sidebar sessions:', error);
+		} finally {
+			hermesSidebarSessionsLoading = false;
+
+			if (hermesSidebarSessionsRefreshQueued) {
+				hermesSidebarSessionsRefreshQueued = false;
+				loadHermesSidebarSessions();
 			}
 		}
 	};
@@ -234,8 +280,50 @@
 			})()
 		]);
 
+		await loadHermesSidebarSessions();
+
 		// Enable pagination
 		scrollPaginationEnabled.set(true);
+	};
+
+	const openHermesSessionPanel = async () => {
+		chatControlsOpenTarget.set('session');
+		await showControls.set(true);
+	};
+
+	const handleSidebarLogoError = (event: Event) => {
+		const image = event.currentTarget as HTMLImageElement | null;
+
+		if (!image || image.dataset.fallbackLoaded === 'true') {
+			return;
+		}
+
+		image.dataset.fallbackLoaded = 'true';
+		image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
+	};
+
+	const openOrImportHermesSidebarSession = async (session: HermesSessionListItem) => {
+		if (!session?.session_id || hermesSidebarSessionActionId) {
+			return;
+		}
+
+		hermesSidebarSessionActionId = session.imported_chat_id || session.session_id;
+
+		try {
+			const res = await importHermesSession(localStorage.token, session.session_id).catch((error) => {
+				toast.error(`${error}`);
+				return null;
+			});
+
+			if (res?.chat?.id) {
+				await refreshHermesSessionStores(localStorage.token);
+				await goto(`/c/${res.chat.id}`);
+			}
+		} catch (error) {
+			toast.error(`${error}`);
+		} finally {
+			hermesSidebarSessionActionId = null;
+		}
 	};
 
 	const loadMoreChats = async () => {
@@ -255,6 +343,36 @@
 
 		chatListLoading = false;
 	};
+
+	$: {
+		recentHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
+			limit: 6,
+			includeImported: false
+		});
+
+		totalVisibleHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
+			limit: Number.MAX_SAFE_INTEGER,
+			includeImported: false
+		}).length;
+	}
+
+	$: orderedPinnedChats = buildHermesAwareChatList($pinnedChats ?? [], $hermesSessionsByChatId);
+	$: orderedChats = buildHermesAwareChatList($chats ?? [], $hermesSessionsByChatId);
+	$: showSidebarNotes =
+		($config?.features?.enable_notes ?? false) &&
+		($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true));
+	$: showSidebarWorkspace =
+		$user?.role === 'admin' ||
+			$user?.permissions?.workspace?.models ||
+			$user?.permissions?.workspace?.knowledge ||
+			$user?.permissions?.workspace?.prompts ||
+			$user?.permissions?.workspace?.tools;
+	$: showSidebarModels =
+		($models ?? []).length > 0 &&
+		((($settings?.pinnedModels ?? []).length > 0) || $config?.default_pinned_models);
+	$: showSidebarChannels =
+		$config?.features?.enable_channels &&
+		($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true));
 
 	const importChatHandler = async (items, pinned = false, folderId = null) => {
 		console.log('importChatHandler', items, pinned, folderId);
@@ -378,7 +496,15 @@
 		}
 	};
 
-	const onFocus = () => {};
+	const onFocus = () => {
+		loadHermesSidebarSessions();
+	};
+
+	const onVisibilityChange = () => {
+		if (document.visibilityState === 'visible') {
+			loadHermesSidebarSessions();
+		}
+	};
 
 	const onBlur = () => {
 		shiftKey = false;
@@ -502,6 +628,7 @@
 		window.addEventListener('touchend', onTouchEnd);
 
 		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisibilityChange);
 		window.addEventListener('blur', onBlur);
 
 		const dropZone = document.getElementById('sidebar');
@@ -524,6 +651,7 @@
 			window.removeEventListener('touchend', onTouchEnd);
 
 			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisibilityChange);
 			window.removeEventListener('blur', onBlur);
 
 			if (dropZone) {
@@ -713,9 +841,10 @@
 					>
 						<div class=" self-center flex items-center justify-center size-9">
 							<img
-								src="{WEBUI_BASE_URL}/static/favicon.png"
+								src="/favicon.png"
 								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden"
 								alt=""
+								on:error={handleSidebarLogoError}
 							/>
 
 							<Sidebar className="size-5 hidden group-hover:flex" />
@@ -767,7 +896,7 @@
 					</Tooltip>
 				</div>
 
-				{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))}
+				{#if showSidebarNotes}
 					<div class="">
 						<Tooltip content={$i18n.t('Notes')} placement="right">
 							<a
@@ -791,7 +920,7 @@
 					</div>
 				{/if}
 
-				{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools}
+				{#if showSidebarWorkspace}
 					<div class="">
 						<Tooltip content={$i18n.t('Workspace')} placement="right">
 							<a
@@ -908,9 +1037,10 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="{WEBUI_BASE_URL}/static/favicon.png"
+						src="/favicon.png"
 						class="sidebar-new-chat-icon size-6 rounded-full"
 						alt=""
+						on:error={handleSidebarLogoError}
 					/>
 				</a>
 
@@ -1001,7 +1131,7 @@
 						</button>
 					</div>
 
-					{#if ($config?.features?.enable_notes ?? false) && ($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true))}
+					{#if showSidebarNotes}
 						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 							<a
 								id="sidebar-notes-button"
@@ -1022,7 +1152,7 @@
 						</div>
 					{/if}
 
-					{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models || $user?.permissions?.workspace?.knowledge || $user?.permissions?.workspace?.prompts || $user?.permissions?.workspace?.tools}
+					{#if showSidebarWorkspace}
 						<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 							<a
 								id="sidebar-workspace-button"
@@ -1057,7 +1187,77 @@
 					{/if}
 				</div>
 
-				{#if ($models ?? []).length > 0 && (($settings?.pinnedModels ?? []).length > 0 || $config?.default_pinned_models)}
+				{#if totalVisibleHermesSidebarSessions > 0}
+					<div class="px-2 pt-1.5">
+						<div class="flex items-center justify-between gap-3 px-1.5">
+							<button
+								type="button"
+								class="min-w-0 flex flex-1 items-center gap-2 text-left"
+								on:click={() => {
+									showHermesSidebarSessions = !showHermesSidebarSessions;
+								}}
+							>
+								<div
+									class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+								>
+									{$i18n.t('Hermes sessions')}
+								</div>
+								<div
+									class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300"
+								>
+									{totalVisibleHermesSidebarSessions}
+								</div>
+							</button>
+
+							<button
+								type="button"
+								class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+								on:click={openHermesSessionPanel}
+							>
+								{$i18n.t('Session')}
+							</button>
+						</div>
+
+							{#if showHermesSidebarSessions}
+								<div class="mt-1.5 flex items-center justify-between gap-3 px-1.5">
+									<div class="min-w-0 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+										{$i18n.t('Hermes sessions stay linked to Chats. Open or import one directly.')}
+									</div>
+
+									<button
+										type="button"
+										class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+										on:click={openHermesSessionPanel}
+									>
+										{$i18n.t('Open')}
+									</button>
+								</div>
+
+								{#if recentHermesSidebarSessions.length > 0}
+									<div class="mt-2 space-y-0.5">
+										{#each recentHermesSidebarSessions as session (session.session_id)}
+											<HermesSessionItem
+												{session}
+												showPreview={false}
+												busy={hermesSidebarSessionActionId === session.session_id ||
+													(Boolean(session.imported_chat_id) &&
+														hermesSidebarSessionActionId === session.imported_chat_id)}
+												className="px-1.5"
+												on:open={(e) => {
+													openOrImportHermesSidebarSession(e.detail);
+												}}
+												on:import={(e) => {
+													openOrImportHermesSidebarSession(e.detail);
+												}}
+											/>
+										{/each}
+									</div>
+								{/if}
+							{/if}
+					</div>
+				{/if}
+
+				{#if showSidebarModels}
 					<Folder
 						id="sidebar-models"
 						bind:open={showPinnedModels}
@@ -1070,7 +1270,7 @@
 					</Folder>
 				{/if}
 
-				{#if $config?.features?.enable_channels && ($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true))}
+				{#if showSidebarChannels}
 					<Folder
 						id="sidebar-channels"
 						bind:open={showChannels}
@@ -1282,12 +1482,16 @@
 									<div
 										class="ml-3 pl-1 mt-[1px] flex flex-col overflow-y-auto scrollbar-hidden border-s border-gray-100 dark:border-gray-900 text-gray-900 dark:text-gray-200"
 									>
-										{#each $pinnedChats as chat, idx (`pinned-chat-${chat?.id ?? idx}`)}
+										{#each orderedPinnedChats as chat, idx (`pinned-chat-${chat?.id ?? idx}`)}
 											<ChatItem
 												className=""
 												id={chat.id}
 												title={chat.title}
 												createdAt={chat.created_at}
+												updatedAt={chat.updated_at}
+												activityUpdatedAt={chat.effective_updated_at}
+												meta={chat.meta}
+												sessionSummary={chat.session_summary}
 												{shiftKey}
 												selected={selectedChatId === chat.id}
 												on:select={() => {
@@ -1313,9 +1517,9 @@
 
 					<div class=" flex-1 flex flex-col overflow-y-auto scrollbar-hidden">
 						<div class="pt-1.5">
-							{#if $chats}
-								{#each $chats as chat, idx (`chat-${chat?.id ?? idx}`)}
-									{#if idx === 0 || (idx > 0 && chat.time_range !== $chats[idx - 1].time_range)}
+							{#if orderedChats}
+								{#each orderedChats as chat, idx (`chat-${chat?.id ?? idx}`)}
+									{#if idx === 0 || (idx > 0 && chat.time_range !== orderedChats[idx - 1].time_range)}
 										<div
 											class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx ===
 											0
@@ -1349,6 +1553,10 @@
 										id={chat.id}
 										title={chat.title}
 										createdAt={chat.created_at}
+										updatedAt={chat.updated_at}
+										activityUpdatedAt={chat.effective_updated_at}
+										meta={chat.meta}
+										sessionSummary={chat.session_summary}
 										{shiftKey}
 										selected={selectedChatId === chat.id}
 										on:select={() => {

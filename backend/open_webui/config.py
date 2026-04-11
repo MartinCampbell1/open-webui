@@ -19,6 +19,7 @@ from authlib.integrations.starlette_client import OAuth
 
 
 from open_webui.env import (
+    BASE_DIR,
     DATA_DIR,
     DATABASE_URL,
     ENABLE_DB_MIGRATIONS,
@@ -831,6 +832,7 @@ load_oauth_providers()
 ####################################
 
 STATIC_DIR = Path(os.getenv('STATIC_DIR', OPEN_WEBUI_DIR / 'static')).resolve()
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 
 try:
     if STATIC_DIR.exists():
@@ -875,6 +877,25 @@ if frontend_loader.exists():
         shutil.copyfile(frontend_loader, STATIC_DIR / 'loader.js')
     except Exception as e:
         logging.error(f'An error occurred: {e}')
+
+fallback_static_sources = [BASE_DIR / 'static', BASE_DIR / 'static' / 'static']
+
+for source_dir in fallback_static_sources:
+    if not source_dir.exists():
+        continue
+
+    for file_path in source_dir.iterdir():
+        if not file_path.is_file():
+            continue
+
+        target_path = STATIC_DIR / file_path.name
+        if target_path.exists():
+            continue
+
+        try:
+            shutil.copyfile(file_path, target_path)
+        except Exception as e:
+            logging.error(f'An error occurred while copying fallback static asset {file_path}: {e}')
 
 
 ####################################
@@ -1590,7 +1611,7 @@ ENABLE_ADMIN_ANALYTICS = os.environ.get('ENABLE_ADMIN_ANALYTICS', 'True').lower(
 ENABLE_COMMUNITY_SHARING = PersistentConfig(
     'ENABLE_COMMUNITY_SHARING',
     'ui.enable_community_sharing',
-    os.environ.get('ENABLE_COMMUNITY_SHARING', 'True').lower() == 'true',
+    os.environ.get('ENABLE_COMMUNITY_SHARING', 'False').lower() == 'true',
 )
 
 ENABLE_MESSAGE_RATING = PersistentConfig(

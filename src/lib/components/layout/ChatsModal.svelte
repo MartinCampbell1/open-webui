@@ -15,6 +15,7 @@
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
+	import { hermesSessionsByChatId } from '$lib/stores';
 
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
@@ -24,6 +25,12 @@
 	import Link from '../icons/Link.svelte';
 	import LinkSlash from '../icons/LinkSlash.svelte';
 	import Clipboard from '../icons/Clipboard.svelte';
+	import {
+		buildHermesAwareChatList,
+		formatHermesChatListMetaLine,
+		getResolvedHermesSessionContext,
+		refreshHermesSessionStores
+	} from '$lib/utils/hermesSessions';
 
 	const i18n = getContext('i18n');
 
@@ -48,6 +55,15 @@
 	let selectedChatId = null;
 	let selectedIdx = 0;
 	let showDeleteConfirmDialog = false;
+	let orderedChatList = null;
+	let hermesRefreshLoading = false;
+	$: normalizedQuery = query.trim();
+	$: isQueryMode = normalizedQuery.length > 0;
+	$: helperText = isQueryMode
+		? $i18n.t('Chats matching "{{QUERY}}" stay linked to Hermes context.', {
+				QUERY: normalizedQuery
+			})
+		: $i18n.t('Recent chats stay linked to Hermes sessions.');
 
 	export let onUpdate = () => {};
 	export let onDelete: (id: string) => void = () => {};
@@ -55,6 +71,19 @@
 	export let loadHandler: null | Function = null;
 	export let unarchiveHandler: null | Function = null;
 	export let unshareHandler: null | Function = null;
+
+	const getChatListMetaLine = (chat) => {
+		return formatHermesChatListMetaLine({
+			hermesMeta: getResolvedHermesSessionContext({
+				session: $hermesSessionsByChatId[chat?.id] ?? null,
+				meta: chat?.meta ?? null,
+				chatPayload: chat?.chat ?? null
+			}),
+			session: $hermesSessionsByChatId[chat?.id] ?? null,
+			summary: chat?.session_summary,
+			translate: $i18n.t
+		});
+	};
 
 	const setSortKey = (key) => {
 		if (orderBy === key) {
@@ -75,6 +104,33 @@
 		}
 		onUpdate();
 	};
+
+	const refreshHermesSessions = async () => {
+		if (!show || hermesRefreshLoading || !localStorage?.token) {
+			return;
+		}
+
+		hermesRefreshLoading = true;
+
+		try {
+			await refreshHermesSessionStores(localStorage.token);
+		} catch (error) {
+			console.debug('Failed to refresh Hermes sessions for chats modal:', error);
+		} finally {
+			hermesRefreshLoading = false;
+		}
+	};
+
+	$: orderedChatList =
+		chatList === null
+			? null
+			: buildHermesAwareChatList(chatList, $hermesSessionsByChatId, {
+					orderBy,
+					direction
+				});
+	$: if (show) {
+		refreshHermesSessions();
+	}
 </script>
 
 <ConfirmDialog
@@ -110,6 +166,10 @@
 					/>
 				</svg>
 			</button>
+		</div>
+
+		<div class="px-5 pb-1 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
+			{$i18n.t('Hermes sessions stay linked to Chats. Open or import one directly.')}
 		</div>
 
 		<div class="flex flex-col w-full px-5 pb-4 dark:text-gray-200">
@@ -154,10 +214,14 @@
 				</div>
 			{/if}
 
+			<div class="px-1.5 pb-2 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
+				{helperText}
+			</div>
+
 			<div class=" flex flex-col w-full sm:flex-row sm:justify-center sm:space-x-6">
-				{#if chatList}
+				{#if orderedChatList}
 					<div class="w-full">
-						{#if chatList.length > 0}
+						{#if orderedChatList.length > 0}
 							<div class="flex text-xs font-medium mb-1.5">
 								{#if showUserInfo}
 									<div class="px-1.5 py-1 w-32">
@@ -215,16 +279,20 @@
 							</div>
 						{/if}
 						<div class="text-left text-sm w-full mb-3 max-h-[22rem] overflow-y-scroll">
-							{#if chatList.length === 0}
-								<div
-									class="text-xs text-gray-500 dark:text-gray-400 text-center px-5 min-h-20 w-full h-full flex justify-center items-center"
-								>
-									{$i18n.t('No results found')}
-								</div>
+							{#if orderedChatList.length === 0}
+							<div
+								class="text-xs text-gray-500 dark:text-gray-400 text-center px-5 min-h-20 w-full h-full flex justify-center items-center"
+							>
+								{$i18n.t(
+									isQueryMode
+										? 'No chats match this search.'
+										: emptyPlaceholder || 'No chats found.'
+								)}
+							</div>
 							{/if}
 
-							{#each chatList as chat, idx (chat.id)}
-								{#if (idx === 0 || (idx > 0 && chat.time_range !== chatList[idx - 1].time_range)) && chat?.time_range}
+							{#each orderedChatList as chat, idx (chat.id)}
+								{#if (idx === 0 || (idx > 0 && chat.time_range !== orderedChatList[idx - 1].time_range)) && chat?.time_range}
 									<div
 										class="w-full text-xs text-gray-500 dark:text-gray-500 font-medium {idx === 0
 											? ''
@@ -276,19 +344,27 @@
 										<div class="text-ellipsis line-clamp-1 w-full">
 											{chat?.title}
 										</div>
+										{#if getChatListMetaLine(chat)}
+											<div class="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
+												{getChatListMetaLine(chat)}
+											</div>
+										{/if}
 									</a>
 
 									<div class="{showUserInfo ? 'w-28' : 'basis-2/5'} flex items-center justify-end">
 										<div class="hidden sm:flex text-gray-500 dark:text-gray-400 text-xs">
 											{$i18n.t(
-												dayjs(chat?.updated_at * 1000).calendar(null, {
-													sameDay: '[Today]',
-													nextDay: '[Tomorrow]',
-													nextWeek: 'dddd',
-													lastDay: '[Yesterday]',
-													lastWeek: '[Last] dddd',
-													sameElse: 'L' // use localized format, otherwise dayjs.calendar() defaults to DD/MM/YYYY
-												})
+												dayjs((chat?.effective_updated_at ?? chat?.updated_at) * 1000).calendar(
+													null,
+													{
+														sameDay: '[Today]',
+														nextDay: '[Tomorrow]',
+														nextWeek: 'dddd',
+														lastDay: '[Yesterday]',
+														lastWeek: '[Last] dddd',
+														sameElse: 'L' // use localized format, otherwise dayjs.calendar() defaults to DD/MM/YYYY
+													}
+												)
 											)}
 										</div>
 
@@ -401,7 +477,7 @@
 							{/if}
 						</div>
 
-						{#if query === ''}
+						{#if !isQueryMode}
 							<slot name="footer"></slot>
 						{/if}
 					</div>

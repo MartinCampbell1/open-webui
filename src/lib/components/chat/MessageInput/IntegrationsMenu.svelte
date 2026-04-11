@@ -32,6 +32,7 @@
 
 	export let selectedToolIds: string[] = [];
 
+	export let hermesMode = false;
 	export let selectedModels: string[] = [];
 	export let fileUploadCapableModels: string[] = [];
 
@@ -61,7 +62,7 @@
 
 	let fileUploadEnabled = true;
 	$: fileUploadEnabled =
-		fileUploadCapableModels.length === selectedModels.length &&
+		(hermesMode || fileUploadCapableModels.length === selectedModels.length) &&
 		($user?.role === 'admin' || $user?.permissions?.chat?.file_upload);
 
 	const init = async () => {

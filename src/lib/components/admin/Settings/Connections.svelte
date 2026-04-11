@@ -19,6 +19,7 @@
 	import OpenAIConnection from './Connections/OpenAIConnection.svelte';
 	import AddConnectionModal from '$lib/components/AddConnectionModal.svelte';
 	import OllamaConnection from './Connections/OllamaConnection.svelte';
+	import { HERMES_SUPPORT_URL } from '$lib/constants';
 
 	const i18n = getContext('i18n');
 
@@ -351,7 +352,7 @@
 								{$i18n.t('Trouble accessing Ollama?')}
 								<a
 									class=" text-gray-300 font-medium underline"
-									href="https://github.com/open-webui/open-webui#troubleshooting"
+									href={HERMES_SUPPORT_URL}
 									target="_blank"
 								>
 									{$i18n.t('Click here for help.')}

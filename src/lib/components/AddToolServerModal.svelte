@@ -25,6 +25,7 @@
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import Textarea from './common/Textarea.svelte';
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
+	import { HERMES_DOCS_URL } from '$lib/constants';
 
 	export let onSubmit: Function = () => {};
 	export let onDelete: Function = () => {};
@@ -919,7 +920,7 @@
 
 							<a
 								class="font-medium underline"
-								href="https://docs.openwebui.com/features/mcp"
+								href={HERMES_DOCS_URL}
 								target="_blank">{$i18n.t('Read more →')}</a
 							>
 						</div>
