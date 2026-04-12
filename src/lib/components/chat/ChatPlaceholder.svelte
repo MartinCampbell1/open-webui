@@ -87,7 +87,7 @@
 					{#if models[selectedModelIdx]?.name}
 						{models[selectedModelIdx]?.name}
 					{:else}
-						{$i18n.t('Hello, {{name}}', { name: $user?.name })}
+						{$i18n.t('Hermes is ready, {{name}}', { name: $user?.name })}
 					{/if}
 				</div>
 
@@ -118,8 +118,21 @@
 							</div>
 						{/if}
 					{:else}
-						<div class=" text-gray-400 dark:text-gray-500 line-clamp-1 font-p">
-							{$i18n.t('How can I help you today?')}
+						<div class="max-w-2xl text-base font-normal leading-6 text-gray-500 dark:text-gray-400">
+							{$i18n.t(
+								'Hermes keeps the active workspace, profile, and conversation context aligned while you work.'
+							)}
+						</div>
+						<div class="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+							<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+								{$i18n.t('Workspace-aware')}
+							</div>
+							<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+								{$i18n.t('Profile-aware')}
+							</div>
+							<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+								{$i18n.t('Conversation-linked')}
+							</div>
 						</div>
 					{/if}
 				</div>

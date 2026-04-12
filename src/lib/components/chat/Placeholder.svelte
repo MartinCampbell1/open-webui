@@ -88,13 +88,27 @@
 					}}
 				/>
 			{:else}
-				<div class="flex flex-col items-center justify-center gap-1.5 px-5 max-w-xl">
+				<div class="flex flex-col items-center justify-center gap-2 px-5 max-w-2xl">
 					<div class="text-3xl @sm:text-3xl line-clamp-1 font-medium text-gray-800 dark:text-gray-100">
-						{$i18n.t('Hello, {{name}}', { name: $user?.name })}
+						{$i18n.t('Hermes is ready, {{name}}', { name: $user?.name })}
 					</div>
 
-					<div class="text-sm font-normal text-gray-500 dark:text-gray-400">
-						{$i18n.t('How can I help you today?')}
+					<div class="max-w-xl text-sm font-normal leading-6 text-gray-500 dark:text-gray-400">
+						{$i18n.t(
+							'Hermes keeps the active workspace, profile, and conversation context aligned while you work.'
+						)}
+					</div>
+
+					<div class="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-[11px]">
+						<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+							{$i18n.t('Workspace-aware')}
+						</div>
+						<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+							{$i18n.t('Profile-aware')}
+						</div>
+						<div class="rounded-full bg-gray-100 px-2.5 py-1 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+							{$i18n.t('Conversation-linked')}
+						</div>
 					</div>
 				</div>
 			{/if}
@@ -120,7 +134,9 @@
 					{toolServers}
 					{stopResponse}
 					{createMessagePair}
-					placeholder={$i18n.t('How can I help you today?')}
+					placeholder={$i18n.t(
+						'Ask Hermes to continue, inspect, search, or change the current work.'
+					)}
 					{onChange}
 					{onUpload}
 					on:submit={(e) => {

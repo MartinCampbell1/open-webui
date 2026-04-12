@@ -8,11 +8,6 @@
 		chatControlsOpenTarget,
 		chatId,
 		config,
-		hermesContextLoaded,
-		hermesContextLoading,
-		hermesProfilesStore,
-		hermesRuntimeStore,
-		hermesWorkspacesStore,
 		mobile,
 		settings,
 		showArchivedChats,
@@ -48,8 +43,6 @@
 	import ClockRotateRight from '../icons/ClockRotateRight.svelte';
 	import QueueList from '../icons/QueueList.svelte';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
-	import HermesContextBar from '$lib/components/hermes/context/HermesContextBar.svelte';
-	import { buildHermesContextSummary, ensureHermesContextBundle } from '$lib/utils/hermesContext';
 
 	const i18n = getContext<any>('i18n');
 	const HERMES_ONLY_CHAT = true;
@@ -82,21 +75,6 @@
 	};
 	$: shouldShowHermesQuickActions = !$mobile;
 	$: shouldShowTasksQuickAction = !!(chat?.id || history?.currentId);
-	$: shouldShowHermesContextStrip = !$mobile;
-	$: navbarContextSummary = buildHermesContextSummary({
-		chatHermesSession,
-		chatMeta,
-		runtime: $hermesRuntimeStore,
-		workspaces: $hermesWorkspacesStore,
-		profiles: $hermesProfilesStore,
-		temporaryChatEnabled: $temporaryChatEnabled,
-		currentMessageId: history?.currentId,
-		selectedModelLabel: selectedModels?.[0] ?? '',
-		chatAttachedFileCount: chatFiles?.length ?? 0
-	});
-	$: if (shouldShowHermesContextStrip && !$hermesContextLoaded && !$hermesContextLoading) {
-		void ensureHermesContextBundle(localStorage?.token, { includeProfiles: false });
-	}
 </script>
 
 <ShareChatModal bind:show={showShareChatModal} chatId={$chatId} />
@@ -151,15 +129,6 @@
 				>
 					{#if showModelSelector}
 						<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
-					{/if}
-
-					{#if shouldShowHermesContextStrip && navbarContextSummary}
-						<HermesContextBar
-							summary={navbarContextSummary}
-							on:workspace={() => openControlsTo('workspace')}
-							on:profile={() => openControlsTo('profile')}
-							on:session={() => openControlsTo('session')}
-						/>
 					{/if}
 				</div>
 
@@ -264,42 +233,51 @@
 
 					{#if shouldShowHermesQuickActions}
 						<div
-							class="flex items-center gap-0.5 mx-1 rounded-xl bg-gray-50/70 px-1 py-0.5 dark:bg-gray-850/70"
+							class="mx-1 flex shrink-0 items-center gap-0.5 rounded-xl bg-gray-50/70 px-1 py-0.5 dark:bg-gray-850/70"
 						>
 							<Tooltip content={$i18n.t('Workspace')}>
 								<button
-									class="flex cursor-pointer px-1.5 py-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition"
+									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
 									on:click={() => openControlsTo('workspace')}
 									aria-label={$i18n.t('Workspace')}
 								>
-									<div class="m-auto self-center">
+									<div class="m-auto self-center shrink-0">
 										<FolderOpen className="size-4" />
 									</div>
+									<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
+										{$i18n.t('Workspace')}
+									</span>
 								</button>
 							</Tooltip>
 
-							<Tooltip content={$i18n.t('Session')}>
+							<Tooltip content={$i18n.t('Context')}>
 								<button
-									class="flex cursor-pointer px-1.5 py-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition"
+									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
 									on:click={() => openControlsTo('session')}
-									aria-label={$i18n.t('Session')}
+									aria-label={$i18n.t('Context')}
 								>
-									<div class="m-auto self-center">
+									<div class="m-auto self-center shrink-0">
 										<ClockRotateRight className="size-4" />
 									</div>
+									<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
+										{$i18n.t('Context')}
+									</span>
 								</button>
 							</Tooltip>
 
 							{#if shouldShowTasksQuickAction}
-								<Tooltip content={$i18n.t('Tasks')}>
+								<Tooltip content={$i18n.t('Live run')}>
 									<button
-										class="flex cursor-pointer px-1.5 py-1.5 rounded-lg hover:bg-white dark:hover:bg-gray-800 transition"
+										class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
 										on:click={() => openControlsTo('tasks')}
-										aria-label={$i18n.t('Tasks')}
+										aria-label={$i18n.t('Live run')}
 									>
-										<div class="m-auto self-center">
+										<div class="m-auto self-center shrink-0">
 											<QueueList className="size-4" />
 										</div>
+										<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
+											{$i18n.t('Live run')}
+										</span>
 									</button>
 								</Tooltip>
 							{/if}

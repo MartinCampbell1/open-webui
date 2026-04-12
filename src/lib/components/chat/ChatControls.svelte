@@ -182,7 +182,7 @@
 			? [{ id: 'history', label: $i18n.t('Archive') }]
 			: []),
 		...(showFilesTab ? [{ id: 'files', label: $i18n.t('Workspace') }] : []),
-		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Tasks') }] : [])
+		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Live run') }] : [])
 	] as PanelTab[];
 	$: inspectTabs = [
 		...(showProfileTab ? [{ id: 'profile', label: $i18n.t('Profile') }] : []),
@@ -679,6 +679,7 @@
 											</button>
 										{/each}
 										{#if inspectTabs.length > 0}
+											<div class="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-800"></div>
 											<button
 												class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {(inspectTabsExpanded ||
 												activeTabInInspectGroup)
@@ -969,6 +970,7 @@
 										</button>
 									{/each}
 									{#if inspectTabs.length > 0}
+										<div class="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-800"></div>
 										<button
 											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {(inspectTabsExpanded ||
 											activeTabInInspectGroup)

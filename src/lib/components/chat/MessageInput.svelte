@@ -451,9 +451,26 @@
 
 	export let dragged = false;
 	let shiftKey = false;
+	let hermesComposerFocused = false;
 
 	let user = null;
 	export let placeholder = '';
+	$: hermesHasSecondaryActivity =
+		(selectedToolIds?.length ?? 0) > 0 ||
+		(selectedFilterIds?.length ?? 0) > 0 ||
+		webSearchEnabled ||
+		imageGenerationEnabled ||
+		codeInterpreterEnabled ||
+		(pendingOAuthTools?.length ?? 0) > 0 ||
+		showTools ||
+		showTerminalMenu ||
+		recording;
+	$: showHermesSecondaryToolbar =
+		!hermesMode ||
+		hermesComposerFocused ||
+		prompt.trim().length > 0 ||
+		files.length > 0 ||
+		hermesHasSecondaryActivity;
 
 	let visionCapableModels = [];
 	$: visionCapableModels = hermesMode
@@ -1282,6 +1299,16 @@
 								? 'border-dashed border-gray-100 dark:border-gray-800 hover:border-gray-200 focus-within:border-gray-200 hover:dark:border-gray-700 focus-within:dark:border-gray-700'
 								: ' border-gray-100/30 dark:border-gray-850/30 hover:border-gray-200 focus-within:border-gray-100 hover:dark:border-gray-800 focus-within:dark:border-gray-800'}  transition px-1 bg-white/5 dark:bg-gray-500/5 backdrop-blur-sm dark:text-gray-100"
 							dir={$settings?.chatDirection ?? 'auto'}
+							on:focusin={() => {
+								hermesComposerFocused = true;
+							}}
+							on:focusout={(event) => {
+								const container = event.currentTarget as HTMLElement | null;
+								const nextTarget = event.relatedTarget as Node | null;
+								if (!container || !nextTarget || !container.contains(nextTarget)) {
+									hermesComposerFocused = false;
+								}
+							}}
 						>
 							{#if atSelectedModel !== undefined}
 								<div class="px-3 pt-3 text-left w-full flex flex-col z-10">
@@ -1664,7 +1691,7 @@
 										</div>
 									</InputMenu>
 
-									{#if showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0)}
+									{#if (!hermesMode || showHermesSecondaryToolbar) && (showWebSearchButton || showImageGenerationButton || showCodeInterpreterButton || showToolsButton || (toggleFilters && toggleFilters.length > 0))}
 										<div
 											class="flex self-center w-[1px] h-4 mx-1 bg-gray-200/50 dark:bg-gray-800/50"
 										/>
@@ -1724,7 +1751,8 @@
 										</div>
 									{/if}
 
-									<div class="ml-1 flex gap-1.5">
+									{#if !hermesMode || showHermesSecondaryToolbar}
+										<div class="ml-1 flex gap-1.5">
 										{#if (selectedToolIds ?? []).length > 0}
 											<Tooltip
 												content={$i18n.t('{{COUNT}} Available Tools', {
@@ -1867,7 +1895,8 @@
 												</button>
 											</Tooltip>
 										{/each}
-									</div>
+										</div>
+									{/if}
 								</div>
 
 								<div class="self-end flex space-x-1 mr-1 shrink-0 gap-[0.5px]">
@@ -1913,7 +1942,7 @@
 											</Tooltip>
 										{/if}
 
-										{#if !history?.currentId || history.messages[history.currentId]?.done == true}
+										{#if (!hermesMode || showHermesSecondaryToolbar) && (!history?.currentId || history.messages[history.currentId]?.done == true)}
 											<!-- Terminal Server Selector -->
 											{#if ($terminalServers ?? []).length > 0 || ($settings?.terminalServers ?? []).some((s) => s.url)}
 												<TerminalMenu bind:show={showTerminalMenu} />
