@@ -48,13 +48,11 @@
 	} from '$lib/apis/chats';
 	import { createNewFolder, getFolders, updateFolderParentIdById } from '$lib/apis/folders';
 	import { checkActiveChats } from '$lib/apis/tasks';
-	import { importHermesSession } from '$lib/apis/hermes';
 	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL } from '$lib/constants';
 
 	import ArchivedChatsModal from './ArchivedChatsModal.svelte';
 	import UserMenu from './Sidebar/UserMenu.svelte';
 	import ChatItem from './Sidebar/ChatItem.svelte';
-	import HermesSessionItem from './Sidebar/HermesSessionItem.svelte';
 	import Spinner from '../common/Spinner.svelte';
 	import Loader from '../common/Loader.svelte';
 	import Folder from '../common/Folder.svelte';
@@ -74,9 +72,7 @@
 	import HotkeyHint from '../common/HotkeyHint.svelte';
 	import {
 		buildHermesAwareChatList,
-		getRecentVisibleHermesSessions,
-		refreshHermesSessionStores,
-		type HermesSessionListItem
+		refreshHermesSessionStores
 	} from '$lib/utils/hermesSessions';
 
 	const BREAKPOINT = 768;
@@ -96,10 +92,7 @@
 	let showCreateFolderModal = false;
 	let hermesSidebarSessionsLoading = false;
 	let hermesSidebarSessionsRefreshQueued = false;
-	let hermesSidebarSessionActionId: string | null = null;
 	let totalVisibleHermesSidebarSessions = 0;
-	let recentHermesSidebarSessions: HermesSessionListItem[] = [];
-	let showHermesSidebarSessions = true;
 	let orderedPinnedChats = [];
 	let orderedChats = [];
 
@@ -286,8 +279,8 @@
 		scrollPaginationEnabled.set(true);
 	};
 
-	const openHermesSessionPanel = async () => {
-		chatControlsOpenTarget.set('session');
+	const openHermesArchivePanel = async () => {
+		chatControlsOpenTarget.set('history');
 		await showControls.set(true);
 	};
 
@@ -300,30 +293,6 @@
 
 		image.dataset.fallbackLoaded = 'true';
 		image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
-	};
-
-	const openOrImportHermesSidebarSession = async (session: HermesSessionListItem) => {
-		if (!session?.session_id || hermesSidebarSessionActionId) {
-			return;
-		}
-
-		hermesSidebarSessionActionId = session.imported_chat_id || session.session_id;
-
-		try {
-			const res = await importHermesSession(localStorage.token, session.session_id).catch((error) => {
-				toast.error(`${error}`);
-				return null;
-			});
-
-			if (res?.chat?.id) {
-				await refreshHermesSessionStores(localStorage.token);
-				await goto(`/c/${res.chat.id}`);
-			}
-		} catch (error) {
-			toast.error(`${error}`);
-		} finally {
-			hermesSidebarSessionActionId = null;
-		}
 	};
 
 	const loadMoreChats = async () => {
@@ -344,14 +313,7 @@
 		chatListLoading = false;
 	};
 
-	$: {
-		recentHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
-			limit: 8,
-			includeImported: true
-		});
-
-		totalVisibleHermesSidebarSessions = ($hermesRecentSessions ?? []).length;
-	}
+	$: totalVisibleHermesSidebarSessions = ($hermesRecentSessions ?? []).length;
 
 	$: orderedPinnedChats = buildHermesAwareChatList($pinnedChats ?? [], $hermesSessionsByChatId);
 	$: orderedChats = buildHermesAwareChatList($chats ?? [], $hermesSessionsByChatId);
@@ -1187,71 +1149,33 @@
 				{#if totalVisibleHermesSidebarSessions > 0}
 					<div class="px-2 pt-1.5">
 						<div class="flex items-center justify-between gap-3 px-1.5">
-							<button
-								type="button"
-								class="min-w-0 flex flex-1 items-center gap-2 text-left"
-								on:click={() => {
-									showHermesSidebarSessions = !showHermesSidebarSessions;
-								}}
-							>
+							<div class="min-w-0 flex flex-1 items-center gap-2 text-left">
 								<div
 									class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
 								>
-									{$i18n.t('Hermes sessions')}
+									{$i18n.t('Hermes archive')}
 								</div>
 								<div
-									class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300"
+									class="inline-flex h-7 min-w-[2.8rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium tabular-nums leading-none text-gray-500 dark:bg-gray-800 dark:text-gray-300"
 								>
 									{totalVisibleHermesSidebarSessions}
 								</div>
-							</button>
+							</div>
 
 							<button
 								type="button"
 								class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-								on:click={openHermesSessionPanel}
+								on:click={openHermesArchivePanel}
 							>
-								{$i18n.t('Session')}
+								{$i18n.t('Open archive')}
 							</button>
 						</div>
 
-							{#if showHermesSidebarSessions}
-								<div class="mt-1.5 flex items-center justify-between gap-3 px-1.5">
-									<div class="min-w-0 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-										{$i18n.t('Hermes sessions stay linked to Chats. Open or import one directly.')}
-									</div>
-
-									<button
-										type="button"
-										class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-										on:click={openHermesSessionPanel}
-									>
-										{$i18n.t('Open')}
-									</button>
-								</div>
-
-								{#if recentHermesSidebarSessions.length > 0}
-									<div class="mt-2 space-y-0.5">
-										{#each recentHermesSidebarSessions as session (session.session_id)}
-											<HermesSessionItem
-												{session}
-												showPreview={false}
-												compact={true}
-												busy={hermesSidebarSessionActionId === session.session_id ||
-													(Boolean(session.imported_chat_id) &&
-														hermesSidebarSessionActionId === session.imported_chat_id)}
-												className="px-1.5"
-												on:open={(e) => {
-													openOrImportHermesSidebarSession(e.detail);
-												}}
-												on:import={(e) => {
-													openOrImportHermesSidebarSession(e.detail);
-												}}
-											/>
-										{/each}
-									</div>
-								{/if}
-							{/if}
+						<div class="mt-1.5 px-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+							{$i18n.t(
+								'Previous Hermes terminal sessions live in the archive. Import only the ones you want to keep as conversations.'
+							)}
+						</div>
 					</div>
 				{/if}
 
@@ -1360,7 +1284,7 @@
 				<Folder
 					id="sidebar-chats"
 					className="px-2 mt-0.5"
-					name={$i18n.t('Chats')}
+					name={$i18n.t('History')}
 					chevron={false}
 					on:change={async (e) => {
 						selectedFolder.set(null);

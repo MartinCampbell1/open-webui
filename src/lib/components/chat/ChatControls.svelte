@@ -115,6 +115,7 @@
 	let minSize = 0;
 	let paneReady = false;
 	let sessionTabPinned = false;
+	let historyTabPinned = false;
 	let inspectTabsExpanded = false;
 	let activeWorkspaceSource: WorkspacePanelStatus['source'] = 'stub';
 	let defaultWorkspaceStatus: WorkspacePanelStatus = {
@@ -155,8 +156,15 @@
 	$: if ($chatControlsOpenTarget === 'session') {
 		sessionTabPinned = true;
 	}
-	$: if (!$showControls && !hasMessages) {
+	$: if ($chatControlsOpenTarget === 'history') {
+		historyTabPinned = true;
+	}
+	$: if (activeTab === 'history') {
+		historyTabPinned = true;
+	}
+	$: if (!$showControls) {
 		sessionTabPinned = false;
+		historyTabPinned = false;
 	}
 	$: showSessionTab = true;
 	$: showProfileTab = !!$user;
@@ -170,6 +178,9 @@
 	$: showOverviewTab = hasMessages;
 	$: primaryTabs = [
 		...(showSessionTab ? [{ id: 'session', label: $i18n.t('Context') }] : []),
+		...(historyTabPinned || activeTab === 'history'
+			? [{ id: 'history', label: $i18n.t('Archive') }]
+			: []),
 		...(showFilesTab ? [{ id: 'files', label: $i18n.t('Workspace') }] : []),
 		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Tasks') }] : [])
 	] as PanelTab[];
@@ -413,11 +424,14 @@
 				? 'files'
 				: $chatControlsOpenTarget === 'session'
 					? 'session'
-					: 'tasks';
+					: $chatControlsOpenTarget === 'history'
+						? 'history'
+						: 'tasks';
 
 		if (
 			(requestedTab === 'files' && showFilesTab) ||
 			(requestedTab === 'session' && showSessionTab) ||
+			requestedTab === 'history' ||
 			(requestedTab === 'tasks' && showTasksTab)
 		) {
 			activeTab = requestedTab;
@@ -609,14 +623,12 @@
 		paneReady &&
 		!chatId &&
 		activeTab !== 'session' &&
+		activeTab !== 'history' &&
 		activeTab !== 'files' &&
-		$chatControlsOpenTarget !== 'session'
+		$chatControlsOpenTarget !== 'session' &&
+		$chatControlsOpenTarget !== 'history'
 	) {
 		closeHandler();
-	}
-
-	$: if (activeTab === 'history') {
-		activeTab = showFilesTab ? 'files' : 'session';
 	}
 
 	// Helper: is a "special" full-screen panel active?

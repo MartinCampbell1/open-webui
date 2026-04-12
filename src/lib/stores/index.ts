@@ -104,7 +104,7 @@ export const showArchivedChats = writable(false);
 export const showChangelog = writable(false);
 
 export const showControls = writable(false);
-export const chatControlsOpenTarget: Writable<'workspace' | 'session' | 'tasks' | null> =
+export const chatControlsOpenTarget: Writable<'workspace' | 'session' | 'history' | 'tasks' | null> =
 	writable(null);
 export const showEmbeds = writable(false);
 export const showOverview = writable(false);

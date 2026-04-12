@@ -565,10 +565,10 @@
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
 						<div class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
-							{$i18n.t('Search Sessions')}
+							{$i18n.t('Search archive')}
 						</div>
 						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Hermes sessions stay linked to Chats. Open or import one directly.')}
+							{$i18n.t('Previous CLI and runtime sessions live here. Open one or import it as a conversation.')}
 						</div>
 					</div>
 
@@ -594,7 +594,7 @@
 						<input
 							class="w-full bg-transparent text-sm outline-hidden"
 							bind:value={sessionQuery}
-							placeholder={$i18n.t('Search Sessions')}
+							placeholder={$i18n.t('Search archive')}
 						/>
 					</div>
 				</div>
@@ -635,10 +635,10 @@
 				<div class="flex items-center justify-between gap-3 px-3 py-3">
 					<div>
 						<div class="text-sm font-medium text-gray-800 dark:text-gray-100">
-							{$i18n.t('Hermes session history')}
+							{$i18n.t('Hermes archive')}
 						</div>
 						<div class="text-[11px] text-gray-400 dark:text-gray-500">
-							{$i18n.t('Real CLI and runtime history')} · {visibleSessions.length}
+							{$i18n.t('Raw CLI and runtime sessions')} · {visibleSessions.length}
 							{#if hasSessionNarrowing}
 								/ {baseVisibleSessions.length}
 							{:else if auxiliarySessions.length > 0 && !showAuxiliarySessions}

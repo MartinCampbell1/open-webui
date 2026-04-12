@@ -41,7 +41,7 @@
 				summary.sessionStateLabel
 					? ({
 							id: 'session',
-							label: `${$i18n.t('Session')}: ${$i18n.t(summary.sessionStateLabel)}`,
+							label: `${$i18n.t('Conversation')}: ${$i18n.t(summary.sessionStateLabel)}`,
 							scope: 'session',
 							tone: 'default',
 							clickTarget: 'session'
