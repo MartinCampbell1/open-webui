@@ -173,9 +173,18 @@ const HERMES_ONLY_CHAT = true;
 		} | null;
 		updatedAt: number;
 	};
+	type HermesPersistedPendingBranch = {
+		responseMessageId: string;
+		userMessageId: string;
+		parentMessageId?: string | null;
+		userMessage: Record<string, any>;
+		responseMessage: Record<string, any>;
+		updatedAt: number;
+	};
 
 	const approvalCallbacks = new Map<string, HermesApprovalCallback>();
 	const HERMES_ACTIVE_STREAM_STORAGE_PREFIX = 'hermes-active-stream';
+	const HERMES_PENDING_BRANCH_STORAGE_PREFIX = 'hermes-pending-branch';
 
 	const attachInlineApproval = (
 		messageId: string,
@@ -332,6 +341,7 @@ const HERMES_ONLY_CHAT = true;
 	let dragged = false;
 	let generationController = null;
 	let hermesActiveStreamId: string | null = null;
+	let hermesResumeLocks = new Set<string>();
 	let hasPersistedHermesActiveStream = false;
 
 	let chat = null;
@@ -456,6 +466,28 @@ const HERMES_ONLY_CHAT = true;
 		return `${HERMES_ACTIVE_STREAM_STORAGE_PREFIX}:${targetChatId}`;
 	};
 
+	const getHermesPendingBranchStorageKey = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined = null
+	) => {
+		if (!targetChatId || targetChatId.startsWith('local:')) {
+			return null;
+		}
+
+		return `${HERMES_PENDING_BRANCH_STORAGE_PREFIX}:${getHermesTargetId(targetId)}:${targetChatId}`;
+	};
+
+	const getHermesResumeLockKey = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined = null
+	) => {
+		if (!targetChatId) {
+			return null;
+		}
+
+		return `${getHermesTargetId(targetId)}:${targetChatId}`;
+	};
+
 	const readPersistedHermesActiveStream = (
 		targetChatId: string | null | undefined,
 		targetId: string | null | undefined = null
@@ -564,6 +596,156 @@ const HERMES_ONLY_CHAT = true;
 		}
 	};
 
+	const readPersistedHermesPendingBranch = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined = null
+	): HermesPersistedPendingBranch | null => {
+		if (typeof sessionStorage === 'undefined') {
+			return null;
+		}
+
+		const storageKey = getHermesPendingBranchStorageKey(targetChatId, targetId);
+		if (!storageKey) {
+			return null;
+		}
+
+		const raw = sessionStorage.getItem(storageKey);
+		if (!raw) {
+			return null;
+		}
+
+		try {
+			const parsed = JSON.parse(raw);
+			if (
+				typeof parsed?.responseMessageId === 'string' &&
+				typeof parsed?.userMessageId === 'string' &&
+				typeof parsed?.updatedAt === 'number' &&
+				parsed?.userMessage &&
+				parsed?.responseMessage
+			) {
+				return parsed as HermesPersistedPendingBranch;
+			}
+		} catch (error) {
+			console.warn('Failed to parse persisted Hermes pending branch:', error);
+		}
+
+		sessionStorage.removeItem(storageKey);
+		return null;
+	};
+
+	const persistHermesPendingBranch = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined,
+		payload: HermesPersistedPendingBranch | null
+	) => {
+		if (typeof sessionStorage === 'undefined') {
+			return;
+		}
+
+		const storageKey = getHermesPendingBranchStorageKey(targetChatId, targetId);
+		if (!storageKey) {
+			return;
+		}
+
+		if (!payload) {
+			sessionStorage.removeItem(storageKey);
+			return;
+		}
+
+		sessionStorage.setItem(
+			storageKey,
+			JSON.stringify({
+				...payload,
+				updatedAt: Date.now()
+			})
+		);
+	};
+
+	const persistHermesPendingBranchSnapshot = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined,
+		messageHistory: Record<string, any>,
+		responseMessageId: string | null | undefined
+	) => {
+		if (!responseMessageId) {
+			return;
+		}
+
+		const responseMessage = messageHistory?.messages?.[responseMessageId];
+		const userMessage = responseMessage?.parentId
+			? messageHistory?.messages?.[responseMessage.parentId]
+			: null;
+
+		if (!responseMessage || !userMessage) {
+			return;
+		}
+
+		persistHermesPendingBranch(targetChatId, targetId, {
+			responseMessageId,
+			userMessageId: userMessage.id,
+			parentMessageId: userMessage.parentId ?? null,
+			userMessage: structuredClone(userMessage),
+			responseMessage: structuredClone(responseMessage),
+			updatedAt: Date.now()
+		});
+	};
+
+	const restorePersistedHermesPendingBranch = (
+		targetChatId: string | null | undefined,
+		targetId: string | null | undefined = null
+	) => {
+		const snapshot = readPersistedHermesPendingBranch(targetChatId, targetId);
+		if (!snapshot) {
+			return false;
+		}
+
+		let changed = false;
+		const messages = history.messages ?? {};
+		const parentMessage = snapshot.parentMessageId
+			? messages[snapshot.parentMessageId] ?? null
+			: null;
+
+		if (!messages[snapshot.userMessageId]) {
+			messages[snapshot.userMessageId] = structuredClone(snapshot.userMessage);
+			changed = true;
+		}
+
+		const restoredUserMessage = messages[snapshot.userMessageId];
+		if (
+			parentMessage &&
+			!parentMessage.childrenIds?.includes(snapshot.userMessageId)
+		) {
+			parentMessage.childrenIds = [...(parentMessage.childrenIds ?? []), snapshot.userMessageId];
+			messages[snapshot.parentMessageId] = parentMessage;
+			changed = true;
+		}
+
+		if (
+			restoredUserMessage &&
+			!restoredUserMessage.childrenIds?.includes(snapshot.responseMessageId)
+		) {
+			restoredUserMessage.childrenIds = [
+				...(restoredUserMessage.childrenIds ?? []),
+				snapshot.responseMessageId
+			];
+			messages[snapshot.userMessageId] = restoredUserMessage;
+			changed = true;
+		}
+
+		if (!messages[snapshot.responseMessageId]) {
+			messages[snapshot.responseMessageId] = structuredClone(snapshot.responseMessage);
+			changed = true;
+		}
+
+		if (changed) {
+			history.messages = messages;
+			history.currentId = snapshot.responseMessageId;
+			history = history;
+		}
+
+		return changed;
+	};
+
 	const updatePersistedHermesActiveStream = (
 		targetChatId: string | null | undefined,
 		targetId: string | null | undefined,
@@ -615,10 +797,12 @@ const HERMES_ONLY_CHAT = true;
 		const responseMessage = history.messages[responseMessageId];
 		if (!responseMessage) {
 			persistHermesActiveStream(targetChatId, activeTargetId, null);
+			persistHermesPendingBranch(targetChatId, activeTargetId, null);
 			return;
 		}
 
 		persistHermesActiveStream(targetChatId, activeTargetId, null);
+		persistHermesPendingBranch(targetChatId, activeTargetId, null);
 		upsertHermesSessionStatus(responseMessage, {
 			description: $i18n.t('Hermes session response received'),
 			done: true
@@ -685,6 +869,7 @@ const HERMES_ONLY_CHAT = true;
 		const responseMessage = history.messages[responseMessageId];
 		if (!responseMessage) {
 			persistHermesActiveStream(targetChatId, activeTargetId, null);
+			persistHermesPendingBranch(targetChatId, activeTargetId, null);
 			return;
 		}
 
@@ -711,6 +896,15 @@ const HERMES_ONLY_CHAT = true;
 		history.messages[responseMessageId] = responseMessage;
 		history.currentId = responseMessageId;
 		history = history;
+
+		if ($chatId == targetChatId && !$temporaryChatEnabled) {
+			try {
+				await saveChatHandler(targetChatId, history);
+				persistHermesPendingBranch(targetChatId, activeTargetId, null);
+			} catch (error) {
+				console.warn('Failed to persist interrupted Hermes branch:', error);
+			}
+		}
 	};
 
 	const attachHermesStreamApproval = (
@@ -2707,6 +2901,15 @@ const HERMES_ONLY_CHAT = true;
 			_chatId = await initChatHandler(_history);
 		}
 
+		if (useHermesTransport) {
+			persistHermesPendingBranchSnapshot(
+				_chatId,
+				getCurrentHermesTargetId(getCurrentHermesSessionContext()),
+				_history,
+				Object.values(responseMessageIds)[0] as string | undefined
+			);
+		}
+
 		await tick();
 
 		// Save chat after all messages have been created
@@ -2822,6 +3025,68 @@ const HERMES_ONLY_CHAT = true;
 		return tokens
 			.filter(Boolean)
 			.map((token) => decodeURIComponent(JSON.parse(`"${token.replace(/"/g, '\\"')}"`)));
+	};
+
+	const recoverHermesTerminalState = async ({
+		streamId,
+		responseMessageId,
+		targetChatId,
+		hermesSessionContext,
+		isResume = false
+	}: {
+		streamId: string;
+		responseMessageId: string;
+		targetChatId: string;
+		hermesSessionContext: Record<string, any> | null;
+		isResume?: boolean;
+	}): Promise<'done' | 'cancel' | 'error' | null> => {
+		const streamStatus = await getHermesSessionMessageStreamStatus(
+			localStorage.token,
+			streamId
+		).catch((error) => {
+			console.warn('Failed to recover Hermes terminal stream state:', error);
+			return null;
+		});
+
+		if (!streamStatus?.done) {
+			return null;
+		}
+
+		if (streamStatus.status === 'completed' && streamStatus.result) {
+			await finalizeHermesCompletedStream({
+				responseMessageId,
+				targetChatId,
+				hermesSessionContext,
+				payload: streamStatus.result
+			});
+			return 'done';
+		}
+
+		const terminalEvent = streamStatus.status === 'cancelled' ? 'cancel' : 'error';
+		await finalizeHermesInterruptedStream({
+			responseMessageId,
+			targetChatId,
+			description:
+				terminalEvent === 'cancel'
+					? $i18n.t('Hermes response cancelled')
+					: isResume
+						? $i18n.t('Hermes stream unavailable')
+						: $i18n.t('Hermes session failed'),
+			errorMessage:
+				terminalEvent === 'cancel'
+					? null
+					: (streamStatus.error ?? $i18n.t('Hermes stream unavailable'))
+		});
+
+		if (!isResume && terminalEvent !== 'cancel') {
+			toast.error(streamStatus.error ?? $i18n.t('Hermes stream unavailable'));
+		}
+
+		if (!isResume) {
+			await processNextInQueue(targetChatId);
+		}
+
+		return terminalEvent;
 	};
 
 	const consumeHermesSessionStream = async ({
@@ -3016,6 +3281,16 @@ const HERMES_ONLY_CHAT = true;
 			}
 
 			if (!terminalEvent) {
+				terminalEvent = await recoverHermesTerminalState({
+					streamId,
+					responseMessageId,
+					targetChatId,
+					hermesSessionContext,
+					isResume
+				});
+			}
+
+			if (!terminalEvent) {
 				throw new Error('Hermes stream ended unexpectedly.');
 			}
 		} catch (error) {
@@ -3065,144 +3340,174 @@ const HERMES_ONLY_CHAT = true;
 		}
 
 		const currentTargetId = getCurrentHermesTargetId();
-		let persistedStream = readPersistedHermesActiveStream(targetChatId, currentTargetId);
-		if (!persistedStream) {
-			const recoverableStream = getRecoverableHermesPendingStream();
-			if (!recoverableStream) {
-				return;
-			}
-
-			persistHermesActiveStream(targetChatId, currentTargetId, recoverableStream);
-			persistedStream = recoverableStream;
-		}
-
-		if (!persistedStream) {
+		const resumeLockKey = getHermesResumeLockKey(targetChatId, currentTargetId);
+		if (resumeLockKey && hermesResumeLocks.has(resumeLockKey)) {
 			return;
 		}
 
-		const responseMessage = history.messages?.[persistedStream.responseMessageId];
-		if (!responseMessage || responseMessage.role !== 'assistant' || responseMessage.done) {
-			persistHermesActiveStream(
+		if (resumeLockKey) {
+			hermesResumeLocks.add(resumeLockKey);
+		}
+
+		try {
+			const restoredPendingBranch = restorePersistedHermesPendingBranch(
 				targetChatId,
-				persistedStream.targetId ?? currentTargetId,
-				null
+				currentTargetId
 			);
-			return;
-		}
-
-		let resolvedStreamId = persistedStream.streamId ?? null;
-		if (!resolvedStreamId) {
-			const userMessage = history.messages?.[responseMessage.parentId];
-			const hermesSessionContext = getCurrentHermesSessionContext();
-			const resolvedTargetId =
-				persistedStream.targetId ?? getCurrentHermesTargetId(hermesSessionContext);
-
-			if (!userMessage?.content && (userMessage?.files?.length ?? 0) === 0) {
-				await finalizeHermesInterruptedStream({
-					responseMessageId: persistedStream.responseMessageId,
-					targetChatId,
-					description: $i18n.t('Hermes stream unavailable'),
-					errorMessage: $i18n.t('Failed to reattach the pending Hermes request.')
+			if (restoredPendingBranch && $chatId == targetChatId && !$temporaryChatEnabled) {
+				saveChatHandler(targetChatId, history).catch((error) => {
+					console.warn('Failed to persist restored Hermes pending branch:', error);
 				});
+			}
+
+			let persistedStream = readPersistedHermesActiveStream(targetChatId, currentTargetId);
+			if (!persistedStream) {
+				const recoverableStream = getRecoverableHermesPendingStream();
+				if (!recoverableStream) {
+					return;
+				}
+
+				persistHermesActiveStream(targetChatId, currentTargetId, recoverableStream);
+				persistedStream = recoverableStream;
+			}
+
+			if (!persistedStream) {
 				return;
 			}
 
-			const recoveredStream = await startHermesSessionMessageStream(localStorage.token, {
-				session_id: persistedStream.sessionId ?? hermesSessionContext?.session_id ?? null,
-				message: userMessage.content,
-				files: userMessage.files ?? null,
-				model:
-					(persistedStream.sessionId ?? hermesSessionContext?.session_id)
-						? (chat?.chat?.models?.[0] ?? responseMessage.model ?? null)
-						: null,
-				client_request_id: persistedStream.clientRequestId,
-				target_id: resolvedTargetId
-			}).catch((error) => {
-				console.warn('Failed to reattach pending Hermes start request:', error);
+			const responseMessage = history.messages?.[persistedStream.responseMessageId];
+			if (!responseMessage || responseMessage.role !== 'assistant' || responseMessage.done) {
+				persistHermesActiveStream(
+					targetChatId,
+					persistedStream.targetId ?? currentTargetId,
+					null
+				);
+				persistHermesPendingBranch(
+					targetChatId,
+					persistedStream.targetId ?? currentTargetId,
+					null
+				);
+				return;
+			}
+
+			let resolvedStreamId = persistedStream.streamId ?? null;
+			if (!resolvedStreamId) {
+				const userMessage = history.messages?.[responseMessage.parentId];
+				const hermesSessionContext = getCurrentHermesSessionContext();
+				const resolvedTargetId =
+					persistedStream.targetId ?? getCurrentHermesTargetId(hermesSessionContext);
+
+				if (!userMessage?.content && (userMessage?.files?.length ?? 0) === 0) {
+					await finalizeHermesInterruptedStream({
+						responseMessageId: persistedStream.responseMessageId,
+						targetChatId,
+						description: $i18n.t('Hermes stream unavailable'),
+						errorMessage: $i18n.t('Failed to reattach the pending Hermes request.')
+					});
+					return;
+				}
+
+				const recoveredStream = await startHermesSessionMessageStream(localStorage.token, {
+					session_id: persistedStream.sessionId ?? hermesSessionContext?.session_id ?? null,
+					message: userMessage.content,
+					files: userMessage.files ?? null,
+					model:
+						(persistedStream.sessionId ?? hermesSessionContext?.session_id)
+							? (chat?.chat?.models?.[0] ?? responseMessage.model ?? null)
+							: null,
+					client_request_id: persistedStream.clientRequestId,
+					target_id: resolvedTargetId
+				}).catch((error) => {
+					console.warn('Failed to reattach pending Hermes start request:', error);
+					return null;
+				});
+
+				if (!recoveredStream?.stream_id) {
+					await finalizeHermesInterruptedStream({
+						responseMessageId: persistedStream.responseMessageId,
+						targetChatId,
+						description: $i18n.t('Hermes stream unavailable'),
+						errorMessage: $i18n.t('Failed to reattach the pending Hermes request.')
+					});
+					return;
+				}
+
+				resolvedStreamId = recoveredStream.stream_id;
+				updatePersistedHermesActiveStream(targetChatId, resolvedTargetId, {
+					streamId: resolvedStreamId,
+					sessionId: recoveredStream.session_id ?? persistedStream.sessionId ?? null,
+					targetId: recoveredStream.target_id ?? resolvedTargetId
+				});
+			}
+
+			const streamStatus = await getHermesSessionMessageStreamStatus(
+				localStorage.token,
+				resolvedStreamId
+			).catch((error) => {
+				console.warn('Failed to resume persisted Hermes stream:', error);
 				return null;
 			});
 
-			if (!recoveredStream?.stream_id) {
-				await finalizeHermesInterruptedStream({
-					responseMessageId: persistedStream.responseMessageId,
+			if (!streamStatus) {
+				persistHermesActiveStream(
 					targetChatId,
-					description: $i18n.t('Hermes stream unavailable'),
-					errorMessage: $i18n.t('Failed to reattach the pending Hermes request.')
-				});
+					persistedStream.targetId ?? currentTargetId,
+					null
+				);
 				return;
 			}
 
-			resolvedStreamId = recoveredStream.stream_id;
-			updatePersistedHermesActiveStream(targetChatId, resolvedTargetId, {
-				streamId: resolvedStreamId,
-				sessionId: recoveredStream.session_id ?? persistedStream.sessionId ?? null,
-				targetId: recoveredStream.target_id ?? resolvedTargetId
-			});
-		}
+			if (streamStatus.done) {
+				if (streamStatus.status === 'completed' && streamStatus.result) {
+					await finalizeHermesCompletedStream({
+						responseMessageId: persistedStream.responseMessageId,
+						targetChatId,
+						hermesSessionContext: getCurrentHermesSessionContext(),
+						payload: streamStatus.result
+					});
+				} else {
+					await finalizeHermesInterruptedStream({
+						responseMessageId: persistedStream.responseMessageId,
+						targetChatId,
+						description:
+							streamStatus.status === 'cancelled'
+								? $i18n.t('Hermes response cancelled')
+								: $i18n.t('Hermes session failed'),
+						errorMessage:
+							streamStatus.status === 'cancelled'
+								? null
+								: (streamStatus.error ?? $i18n.t('Hermes stream unavailable'))
+					});
+				}
 
-		const streamStatus = await getHermesSessionMessageStreamStatus(
-			localStorage.token,
-			resolvedStreamId
-		).catch((error) => {
-			console.warn('Failed to resume persisted Hermes stream:', error);
-			return null;
-		});
-
-		if (!streamStatus) {
-			persistHermesActiveStream(
-				targetChatId,
-				persistedStream.targetId ?? currentTargetId,
-				null
-			);
-			return;
-		}
-
-		if (streamStatus.done) {
-			if (streamStatus.status === 'completed' && streamStatus.result) {
-				await finalizeHermesCompletedStream({
-					responseMessageId: persistedStream.responseMessageId,
-					targetChatId,
-					hermesSessionContext: getCurrentHermesSessionContext(),
-					payload: streamStatus.result
-				});
-			} else {
-				await finalizeHermesInterruptedStream({
-					responseMessageId: persistedStream.responseMessageId,
-					targetChatId,
-					description:
-						streamStatus.status === 'cancelled'
-							? $i18n.t('Hermes response cancelled')
-							: $i18n.t('Hermes session failed'),
-					errorMessage:
-						streamStatus.status === 'cancelled'
-							? null
-							: (streamStatus.error ?? $i18n.t('Hermes stream unavailable'))
-				});
+				await tick();
+				scrollToBottom();
+				return;
 			}
 
-			await tick();
-			scrollToBottom();
-			return;
-		}
+			generating = !streamStatus.done;
 
-		generating = !streamStatus.done;
+			if (streamStatus.status === 'waiting_approval') {
+				attachHermesStreamApproval(
+					persistedStream.responseMessageId,
+					resolvedStreamId,
+					targetChatId,
+					streamStatus.approval_pending ?? persistedStream.pendingApproval ?? {}
+				);
+			}
 
-		if (streamStatus.status === 'waiting_approval') {
-			attachHermesStreamApproval(
-				persistedStream.responseMessageId,
-				resolvedStreamId,
+			await consumeHermesSessionStream({
+				streamId: resolvedStreamId,
+				responseMessageId: persistedStream.responseMessageId,
 				targetChatId,
-				streamStatus.approval_pending ?? persistedStream.pendingApproval ?? {}
-			);
+				hermesSessionContext: getCurrentHermesSessionContext(),
+				isResume: true
+			});
+		} finally {
+			if (resumeLockKey) {
+				hermesResumeLocks.delete(resumeLockKey);
+			}
 		}
-
-		await consumeHermesSessionStream({
-			streamId: resolvedStreamId,
-			responseMessageId: persistedStream.responseMessageId,
-			targetChatId,
-			hermesSessionContext: getCurrentHermesSessionContext(),
-			isResume: true
-		});
 	};
 
 	const sendHermesSessionMessageSocket = async (model, _history, responseMessageId, _chatId) => {
@@ -3271,6 +3576,10 @@ const HERMES_ONLY_CHAT = true;
 			responseMessage.done = true;
 			history.messages[responseMessageId] = responseMessage;
 			history.currentId = responseMessageId;
+			await saveChatHandler(_chatId, history).catch((persistError) => {
+				console.warn('Failed to persist Hermes start error branch:', persistError);
+			});
+			persistHermesPendingBranch(_chatId, targetId, null);
 			await processNextInQueue(_chatId);
 		} finally {
 			generating = false;

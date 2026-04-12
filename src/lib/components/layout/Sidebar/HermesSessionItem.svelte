@@ -18,6 +18,7 @@
 	export let busy = false;
 	export let selected = false;
 	export let showPreview = false;
+	export let compact = false;
 	export let className = '';
 
 	let mouseOver = false;
@@ -26,7 +27,7 @@
 	$: activityText = $i18n.t(activityLabel.key, activityLabel.values ?? {});
 	$: sourceLine = formatHermesSessionSourceLine(session);
 	$: showSecondaryDetails = showPreview || selected || mouseOver;
-	$: showActionLabel = busy || selected || mouseOver;
+	$: showActionLabel = !compact && (busy || selected || mouseOver);
 	$: sessionStateLabel = session.imported_chat_id ? $i18n.t('Imported') : $i18n.t('Ready to import');
 	$: actionLabel = busy
 		? session.imported_chat_id
@@ -81,7 +82,7 @@
 				{session.title}
 			</div>
 
-			{#if session.imported_chat_id}
+			{#if !compact && session.imported_chat_id}
 				<div
 					class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300"
 				>
@@ -89,7 +90,7 @@
 				</div>
 			{/if}
 
-			{#if session.imported_chat_archived}
+			{#if !compact && session.imported_chat_archived}
 				<div
 					class="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300"
 				>

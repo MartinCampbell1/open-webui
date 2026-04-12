@@ -1103,7 +1103,7 @@ def test_load_hermes_session_prefers_json_messages(monkeypatch, tmp_path):
     assert [message['content'] for message in session['messages']] == ['json prompt', 'json reply']
 
 
-def test_load_hermes_session_keeps_json_transcript_even_when_state_db_is_fresher(
+def test_load_hermes_session_appends_fresher_state_db_tail_when_json_is_stale(
     monkeypatch, tmp_path
 ):
     hermes_home = tmp_path / '.hermes'
@@ -1160,6 +1160,8 @@ def test_load_hermes_session_keeps_json_transcript_even_when_state_db_is_fresher
     assert [message['content'] for message in session['messages']] == [
         'canonical json prompt',
         'canonical json reply',
+        'state db mirror prompt',
+        'state db mirror reply',
     ]
     assert session['updated_at'] == 1011
     assert set(session['available_sources']) == {'json', 'state_db'}
@@ -1632,8 +1634,10 @@ def test_send_hermes_runner_control_message_writes_json_line_and_flushes():
 def test_send_hermes_session_message_uses_shared_runner_process(monkeypatch):
     class FakeProcess:
         returncode = 0
+        timeout = object()
 
         def communicate(self, timeout=None):
+            self.timeout = timeout
             return (
                 HERMES_RUNNER_RESULT_SENTINEL
                 + json.dumps(
@@ -1645,6 +1649,8 @@ def test_send_hermes_session_message_uses_shared_runner_process(monkeypatch):
                 ),
                 '',
             )
+
+    runner_process = FakeProcess()
 
     session_payload = {
         'session_id': 'session-123',
@@ -1677,7 +1683,7 @@ def test_send_hermes_session_message_uses_shared_runner_process(monkeypatch):
                 'normalized_session_id': 'session-123',
                 'session_payload': session_payload,
             },
-            'process': FakeProcess(),
+            'process': runner_process,
         },
     )
     monkeypatch.setattr(
@@ -1691,6 +1697,7 @@ def test_send_hermes_session_message_uses_shared_runner_process(monkeypatch):
     assert result['answer'] == 'done'
     assert result['result']['usage']['total_tokens'] == 5
     assert result['chat_payload']['chat']['history']['currentId'] is not None
+    assert runner_process.timeout is None
 
 
 def test_send_hermes_session_message_tolerates_closed_runner_stdin(monkeypatch):

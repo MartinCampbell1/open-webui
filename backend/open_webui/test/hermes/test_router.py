@@ -609,6 +609,48 @@ def test_get_session_stream_status_includes_result_and_pending_approval():
     assert response.approval_pending['command'] == 'rm -rf ./tmp'
 
 
+def test_stream_session_events_replays_terminal_done_for_completed_stream():
+    stream_id = 'stream-completed'
+    state = hermes_router.HermesSessionStreamState(
+        stream_id=stream_id,
+        session_id='session-123',
+        target_id='local',
+        status='completed',
+        done=True,
+    )
+    state.result = {
+        'target_id': 'local',
+        'session_id': 'session-123',
+        'answer': 'done',
+        'chat': {'history': {'messages': {}, 'currentId': None}},
+        'meta': {'hermes': True},
+        'result': {'usage': {'total_tokens': 3}},
+    }
+
+    with hermes_router.HERMES_SESSION_STREAMS_LOCK:
+        hermes_router.HERMES_SESSION_STREAMS[stream_id] = state
+
+    async def _collect_body():
+        response = await hermes_router.stream_session_events(
+            stream_id=stream_id,
+            user=SimpleNamespace(id='user-1'),
+        )
+        chunks = []
+        async for chunk in response.body_iterator:
+            chunks.append(chunk.decode() if isinstance(chunk, bytes) else chunk)
+        return ''.join(chunks)
+
+    try:
+        body = asyncio.run(_collect_body())
+    finally:
+        with hermes_router.HERMES_SESSION_STREAMS_LOCK:
+            hermes_router.HERMES_SESSION_STREAMS.pop(stream_id, None)
+
+    assert 'event: done' in body
+    assert '"session_id": "session-123"' in body
+    assert '"answer": "done"' in body
+
+
 def test_start_session_stream_reuses_existing_stream_for_same_client_request_id(monkeypatch):
     stream_id = 'stream-existing'
     state = hermes_router.HermesSessionStreamState(

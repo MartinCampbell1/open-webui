@@ -396,6 +396,25 @@ def _serialize_stream_state(state: HermesSessionStreamState) -> HermesSessionStr
     )
 
 
+def _build_terminal_stream_event(state: HermesSessionStreamState) -> tuple[str, dict[str, Any]] | None:
+    if not state.done:
+        return None
+
+    if state.status == 'completed' and state.result:
+        return 'done', dict(state.result)
+
+    if state.status == 'cancelled':
+        return 'cancel', {'message': 'Hermes response cancelled.'}
+
+    if state.status == 'error':
+        return 'apperror', {
+            'message': state.error or 'Hermes runner failed.',
+            'type': 'HermesRunnerError',
+        }
+
+    return None
+
+
 def _build_stream_client_request_key(
     target_id: str | None,
     client_request_id: str | None,
@@ -561,6 +580,13 @@ def _run_stream_worker(state: HermesSessionStreamState, context: dict[str, Any],
     final_status = 'cancelled'
     final_error: Optional[str] = None
     final_result: Optional[dict[str, Any]] = None
+    log.info(
+        'Hermes stream worker started stream_id=%s session_id=%s target_id=%s client_request_id=%s',
+        state.stream_id,
+        state.session_id,
+        state.target_id,
+        state.client_request_id,
+    )
 
     try:
         with state.lock:
@@ -573,15 +599,20 @@ def _run_stream_worker(state: HermesSessionStreamState, context: dict[str, Any],
         if process.stderr is not None:
             selector.register(process.stderr, selectors.EVENT_READ, data='stderr')
 
-        deadline = time.monotonic() + HERMES_SEND_TIMEOUT_SECONDS
+        idle_timeout_seconds = HERMES_SEND_TIMEOUT_SECONDS
+        last_activity_at = time.monotonic()
 
         while selector.get_map():
             if state.cancel_requested and process.poll() is None:
                 process.terminate()
 
-            if time.monotonic() > deadline and process.poll() is None:
+            if (
+                idle_timeout_seconds
+                and (time.monotonic() - last_activity_at) > idle_timeout_seconds
+                and process.poll() is None
+            ):
                 process.kill()
-                raise TimeoutError('Hermes session stream timed out.')
+                raise TimeoutError('Hermes session stream became idle and timed out.')
 
             ready = selector.select(timeout=0.25)
             if not ready:
@@ -597,6 +628,7 @@ def _run_stream_worker(state: HermesSessionStreamState, context: dict[str, Any],
                     continue
 
                 line = line.rstrip('\n')
+                last_activity_at = time.monotonic()
                 if key.data == 'stdout':
                     stdout_lines.append(line)
                     event = _parse_hermes_runner_event(line)
@@ -705,6 +737,14 @@ def _run_stream_worker(state: HermesSessionStreamState, context: dict[str, Any],
             state.approval_pending = None
             state.approval_updated_at = time.time()
             state.updated_at = time.time()
+        log.info(
+            'Hermes stream worker finished stream_id=%s session_id=%s status=%s final_event=%s error=%s',
+            state.stream_id,
+            state.session_id,
+            final_status,
+            final_event,
+            final_error,
+        )
 
 
 @router.get('/runtime', response_model=HermesRuntimeResponse)
@@ -947,6 +987,14 @@ async def start_session_stream(
         target_id=normalized_target_id,
     )
     if existing_state is not None:
+        log.info(
+            'Hermes stream reused existing stream_id=%s session_id=%s target_id=%s client_request_id=%s status=%s',
+            existing_state.stream_id,
+            existing_state.session_id,
+            existing_state.target_id,
+            client_request_id,
+            existing_state.status,
+        )
         return HermesSessionStreamStartResponse(
             target_id=existing_state.target_id,
             stream_id=existing_state.stream_id,
@@ -994,6 +1042,13 @@ async def start_session_stream(
                 ] = stream_id
 
         worker.start()
+        log.info(
+            'Hermes stream started stream_id=%s session_id=%s target_id=%s client_request_id=%s',
+            stream_id,
+            state.session_id,
+            state.target_id,
+            client_request_id,
+        )
 
         return HermesSessionStreamStartResponse(
             target_id=state.target_id,
@@ -1018,11 +1073,17 @@ async def stream_session_events(stream_id: str, user=Depends(get_verified_user))
     state = _get_stream_state(stream_id)
 
     async def event_generator():
+        emitted_terminal_event = False
         try:
             while True:
                 item = await asyncio.to_thread(_poll_stream_queue, state, 1.0)
                 if item is None:
                     if state.done:
+                        if not emitted_terminal_event:
+                            terminal_event = _build_terminal_stream_event(state)
+                            if terminal_event is not None:
+                                emitted_terminal_event = True
+                                yield _format_sse_event(terminal_event[0], terminal_event[1])
                         break
                     yield ': keep-alive\n\n'
                     continue
@@ -1030,6 +1091,7 @@ async def stream_session_events(stream_id: str, user=Depends(get_verified_user))
                 yield _format_sse_event(item['event'], item['data'])
 
                 if item['event'] in {'done', 'apperror', 'cancel'} and state.done:
+                    emitted_terminal_event = True
                     break
         finally:
             _prune_stream_registry()

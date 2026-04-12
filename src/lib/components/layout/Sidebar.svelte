@@ -346,14 +346,11 @@
 
 	$: {
 		recentHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
-			limit: 6,
-			includeImported: false
+			limit: 8,
+			includeImported: true
 		});
 
-		totalVisibleHermesSidebarSessions = getRecentVisibleHermesSessions($hermesRecentSessions, {
-			limit: Number.MAX_SAFE_INTEGER,
-			includeImported: false
-		}).length;
+		totalVisibleHermesSidebarSessions = ($hermesRecentSessions ?? []).length;
 	}
 
 	$: orderedPinnedChats = buildHermesAwareChatList($pinnedChats ?? [], $hermesSessionsByChatId);
@@ -1239,6 +1236,7 @@
 											<HermesSessionItem
 												{session}
 												showPreview={false}
+												compact={true}
 												busy={hermesSidebarSessionActionId === session.session_id ||
 													(Boolean(session.imported_chat_id) &&
 														hermesSidebarSessionActionId === session.imported_chat_id)}

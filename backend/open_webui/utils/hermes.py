@@ -52,7 +52,6 @@ HERMES_AUXILIARY_TITLE_PREFIXES = (
 )
 
 HERMES_SESSION_DISCOVERY_LIMIT = 500
-HERMES_SEND_TIMEOUT_SECONDS = 600
 HERMES_RUNNER_EVENT_SENTINEL = '__OPEN_WEBUI_HERMES_EVENT__'
 HERMES_RUNNER_RESULT_SENTINEL = '__OPEN_WEBUI_HERMES_RESULT__'
 HERMES_DEFAULT_TARGET_ID = 'local'
@@ -61,6 +60,32 @@ HERMES_ATTACHMENT_TOTAL_TEXT_LIMIT = 36_000
 HERMES_ATTACHMENT_MAX_FILES = 12
 HERMES_ATTACHMENT_METADATA_LIMIT = 512
 HERMES_ATTACHMENT_REFERENCE_LIMIT = 2_048
+
+
+def _read_optional_timeout_seconds(*env_names: str) -> int | None:
+    for env_name in env_names:
+        raw_value = os.getenv(env_name, '').strip()
+        if not raw_value:
+            continue
+
+        try:
+            timeout_seconds = int(raw_value)
+        except ValueError:
+            log.warning('Ignoring invalid %s=%r; expected integer seconds.', env_name, raw_value)
+            continue
+
+        return timeout_seconds if timeout_seconds > 0 else None
+
+    return None
+
+
+# Hermes requests can legitimately take a long time while browsing memory/history.
+# We therefore disable the old absolute wall-clock timeout by default and only
+# enforce an optional idle timeout when explicitly configured.
+HERMES_SEND_TIMEOUT_SECONDS = _read_optional_timeout_seconds(
+    'HERMES_SEND_IDLE_TIMEOUT_SECONDS',
+    'HERMES_SEND_TIMEOUT_SECONDS',
+)
 
 
 def normalize_hermes_target_id(target_id: str | None = None) -> str:
@@ -1334,6 +1359,64 @@ def _read_state_db_messages(db_path: Path, session_id: str) -> list[dict[str, An
         return []
 
 
+def _should_use_state_db_messages(
+    json_messages: list[dict[str, Any]],
+    *,
+    json_updated_at: int | None,
+    state_messages: list[dict[str, Any]],
+    state_updated_at: int | None,
+) -> bool:
+    if not state_messages:
+        return False
+
+    if not json_messages:
+        return True
+
+    if len(state_messages) > len(json_messages):
+        return True
+
+    if (state_updated_at or 0) > (json_updated_at or 0):
+        return True
+
+    return False
+
+
+def _build_hermes_message_fingerprint(message: dict[str, Any]) -> str:
+    payload = json.dumps(
+        {
+            'role': message.get('role') or 'assistant',
+            'content': _normalize_message_content(message.get('content')),
+            'tool_call_id': message.get('tool_call_id'),
+            'tool_name': message.get('tool_name'),
+            'tool_calls': message.get('tool_calls'),
+            'reasoning': message.get('reasoning'),
+            'reasoning_details': message.get('reasoning_details'),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        default=str,
+    )
+    return hashlib.sha1(payload.encode('utf-8')).hexdigest()
+
+
+def _merge_hermes_session_messages(
+    json_messages: list[dict[str, Any]],
+    state_messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    merged_messages = [dict(message) for message in json_messages]
+    seen_fingerprints = {_build_hermes_message_fingerprint(message) for message in merged_messages}
+
+    for message in state_messages:
+        fingerprint = _build_hermes_message_fingerprint(message)
+        if fingerprint in seen_fingerprints:
+            continue
+
+        merged_messages.append(dict(message))
+        seen_fingerprints.add(fingerprint)
+
+    return merged_messages
+
+
 def load_hermes_session(
     session_id: str,
     sessions_payload: dict[str, Any] | None = None,
@@ -1361,16 +1444,52 @@ def load_hermes_session(
         else []
     )
     json_fallback_timestamp = int(json_path.stat().st_mtime) if json_path.exists() else int(time.time())
+    json_updated_at = (
+        _get_json_session_updated_at(json_data, json_messages, json_fallback_timestamp)
+        if json_data
+        else None
+    )
 
     state_metadata = _get_state_db_session_metadata(hermes_home, active_profile, session_id)
     state_messages = _read_state_db_messages(hermes_home / 'state.db', session_id)
+    state_updated_at = (
+        state_metadata.get('updated_at')
+        if isinstance(state_metadata, dict)
+        else _get_latest_message_timestamp(state_messages)
+    )
 
-    # Hermes session_<id>.json is the canonical conversation artifact.
-    # state.db is only a discovery/freshness index and a recovery fallback when
-    # the canonical JSON transcript is unavailable or empty.
-    use_state_messages = bool(state_messages) and not json_messages
-
-    messages = state_messages if use_state_messages else json_messages
+    # session_<id>.json is preferred only while it remains at least as fresh as
+    # the state.db mirror. Once state.db has more messages or newer activity, it
+    # becomes the safer source of truth for import/refresh continuity.
+    prefer_state_messages = _should_use_state_db_messages(
+        json_messages,
+        json_updated_at=json_updated_at,
+        state_messages=state_messages,
+        state_updated_at=state_updated_at,
+    )
+    if prefer_state_messages and json_messages and state_messages:
+        log.info(
+            'Hermes session %s uses merged history from json + state.db '
+            '(json_messages=%s state_messages=%s json_updated_at=%s state_updated_at=%s)',
+            session_id,
+            len(json_messages),
+            len(state_messages),
+            json_updated_at,
+            state_updated_at,
+        )
+        messages = _merge_hermes_session_messages(json_messages, state_messages)
+    else:
+        if prefer_state_messages and state_messages:
+            log.info(
+                'Hermes session %s uses state.db as freshest source '
+                '(json_messages=%s state_messages=%s json_updated_at=%s state_updated_at=%s)',
+                session_id,
+                len(json_messages),
+                len(state_messages),
+                json_updated_at,
+                state_updated_at,
+            )
+        messages = state_messages if prefer_state_messages else json_messages
     messages = _enrich_tool_message_names(messages)
 
     if not messages:
@@ -1381,10 +1500,8 @@ def load_hermes_session(
         **session_map.get(session_id, {}),
     }
     title = (
-        str(json_data.get('title') or '').strip()
-        if json_data and not use_state_messages
-        else str(session_info.get('title') or '').strip()
-    ) or _derive_title_from_messages(messages)
+        str(json_data.get('title') or '').strip() if json_data else ''
+    ) or str(session_info.get('title') or '').strip() or _derive_title_from_messages(messages)
 
     model = (
         (json_data.get('model') if json_data else None)
@@ -1392,8 +1509,8 @@ def load_hermes_session(
         or 'unknown'
     )
     source_tag = (
-        (None if use_state_messages else (json_data.get('platform') if json_data else None))
-        or (None if use_state_messages else (json_data.get('source') if json_data else None))
+        (json_data.get('platform') if json_data else None)
+        or (json_data.get('source') if json_data else None)
         or session_info.get('source_tag')
         or 'cli'
     )
@@ -1412,8 +1529,7 @@ def load_hermes_session(
         'messages': messages,
         'created_at': session_info.get('created_at')
         or _parse_timestamp(json_data.get('session_start') if json_data else None, json_fallback_timestamp),
-        'updated_at': session_info.get('updated_at')
-        or _parse_timestamp(json_data.get('last_updated') if json_data else None, json_fallback_timestamp),
+        'updated_at': session_info.get('updated_at') or json_updated_at or json_fallback_timestamp,
         'profile': active_profile,
         'source_tag': source_tag,
         'active_home': str(hermes_home),
@@ -2282,7 +2398,7 @@ def send_hermes_session_message(
     *,
     model: str | None = None,
     workspace: str | None = None,
-    timeout_seconds: int = HERMES_SEND_TIMEOUT_SECONDS,
+    timeout_seconds: int | None = HERMES_SEND_TIMEOUT_SECONDS,
     target_id: str | None = None,
     files: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
@@ -2303,7 +2419,10 @@ def send_hermes_session_message(
         process.stdin = None
 
     try:
-        stdout, stderr = process.communicate(timeout=timeout_seconds)
+        if timeout_seconds:
+            stdout, stderr = process.communicate(timeout=timeout_seconds)
+        else:
+            stdout, stderr = process.communicate()
     except subprocess.TimeoutExpired as exc:
         process.kill()
         stdout, stderr = process.communicate()

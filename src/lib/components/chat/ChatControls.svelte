@@ -9,7 +9,7 @@
 		| 'skills'
 		| 'memory'
 		| 'tasks'
-		| 'todos' = 'session';
+		| 'todos' = 'files';
 </script>
 
 <script lang="ts">
@@ -170,7 +170,6 @@
 	$: showOverviewTab = hasMessages;
 	$: primaryTabs = [
 		...(showSessionTab ? [{ id: 'session', label: $i18n.t('Context') }] : []),
-		...(showSessionTab ? [{ id: 'history', label: $i18n.t('Sessions') }] : []),
 		...(showFilesTab ? [{ id: 'files', label: $i18n.t('Workspace') }] : []),
 		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Tasks') }] : [])
 	] as PanelTab[];
@@ -333,7 +332,6 @@
 
 	const getOperatorFallbackTab = (): PanelTabId => {
 		if (showSessionTab) return 'session';
-		if (showSessionTab) return 'history';
 		if (showFilesTab) return 'files';
 		if (showTasksTab) return 'tasks';
 		if (showProfileTab) return 'profile';
@@ -414,12 +412,12 @@
 			$chatControlsOpenTarget === 'workspace'
 				? 'files'
 				: $chatControlsOpenTarget === 'session'
-					? 'history'
+					? 'session'
 					: 'tasks';
 
 		if (
 			(requestedTab === 'files' && showFilesTab) ||
-			(requestedTab === 'history' && showSessionTab) ||
+			(requestedTab === 'session' && showSessionTab) ||
 			(requestedTab === 'tasks' && showTasksTab)
 		) {
 			activeTab = requestedTab;
@@ -611,10 +609,14 @@
 		paneReady &&
 		!chatId &&
 		activeTab !== 'session' &&
-		activeTab !== 'history' &&
+		activeTab !== 'files' &&
 		$chatControlsOpenTarget !== 'session'
 	) {
 		closeHandler();
+	}
+
+	$: if (activeTab === 'history') {
+		activeTab = showFilesTab ? 'files' : 'session';
 	}
 
 	// Helper: is a "special" full-screen panel active?

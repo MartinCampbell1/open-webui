@@ -1096,67 +1096,6 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col px-2 py-2">
-	{#if availableHermesWorkspaces.length > 1}
-		<div
-			class="mx-2 mb-2 rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 dark:border-gray-800/80 dark:bg-gray-900/50"
-		>
-			<div
-				class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-			>
-				{$i18n.t('Workspaces')}
-			</div>
-			<div class="mt-1 text-[11px] leading-5 text-gray-500 dark:text-gray-400">
-				{$i18n.t('Switch the active Hermes workspace without leaving the current chat shell.')}
-			</div>
-
-			<div class="mt-2 flex flex-col gap-1.5">
-				{#each availableHermesWorkspaces as workspace}
-					<button
-						type="button"
-						class="w-full rounded-lg border px-2.5 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60 {workspace.is_active
-							? 'border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/60'
-							: 'border-gray-100/80 bg-white/40 hover:bg-gray-50/70 dark:border-gray-800/80 dark:bg-gray-900/30 dark:hover:bg-gray-800/40'}"
-						disabled={switchingWorkspacePath !== null || hasActiveTasks || workspace.is_active}
-						on:click={() => handleSwitchWorkspace(workspace)}
-					>
-						<div class="flex items-start justify-between gap-2">
-							<div class="min-w-0">
-								<div class="line-clamp-1 text-xs font-medium text-gray-700 dark:text-gray-200">
-									{workspace.name}
-								</div>
-								<div class="mt-0.5 line-clamp-1 text-[11px] text-gray-400 dark:text-gray-500">
-									{workspace.path}
-								</div>
-							</div>
-
-							<div class="flex shrink-0 flex-wrap justify-end gap-1">
-								{#if switchingWorkspacePath === workspace.path}
-									<div
-										class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300"
-									>
-										{$i18n.t('Switching')}...
-									</div>
-								{:else if workspace.path === activeHermesWorkspace?.path}
-									<div
-										class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300"
-									>
-										{$i18n.t('Active workspace')}
-									</div>
-								{/if}
-							</div>
-						</div>
-					</button>
-				{/each}
-			</div>
-
-			{#if hasActiveTasks}
-				<div class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-					{$i18n.t('Cannot switch workspaces while a task is running.')}
-				</div>
-			{/if}
-		</div>
-	{/if}
-
 	{#if !canBrowseWorkspace && workspaceItems.length === 0 && workspaceBrowserEntries.length === 0 && !workspaceBrowseLoading && !workspaceBrowseError && workspaceBrowseLoaded}
 		<div
 			class="mx-2 flex flex-1 min-h-0 flex-col justify-center rounded-xl border border-gray-100/80 bg-white/80 px-3 py-3 dark:border-gray-800/80 dark:bg-gray-900/40"
@@ -1432,6 +1371,72 @@
 							</svelte:fragment>
 						</HermesWorkspaceGuideRow>
 					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
+	{#if availableHermesWorkspaces.length > 1}
+		<div
+			class="mx-2 mt-2 shrink-0 rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 dark:border-gray-800/80 dark:bg-gray-900/50"
+		>
+			<div class="flex items-start justify-between gap-2">
+				<div class="min-w-0">
+					<div
+						class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+					>
+						{$i18n.t('Workspaces')}
+					</div>
+					<div class="mt-1 text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+						{$i18n.t('Switch the active Hermes workspace without leaving the current chat shell.')}
+					</div>
+				</div>
+
+			</div>
+
+			<div class="mt-2 flex flex-col gap-1.5">
+				{#each availableHermesWorkspaces as workspace}
+					<button
+						type="button"
+						class="w-full rounded-lg border px-2.5 py-2 text-left transition disabled:cursor-not-allowed disabled:opacity-60 {workspace.is_active
+							? 'border-gray-200 bg-gray-50/80 dark:border-gray-700 dark:bg-gray-800/60'
+							: 'border-gray-100/80 bg-white/40 hover:bg-gray-50/70 dark:border-gray-800/80 dark:bg-gray-900/30 dark:hover:bg-gray-800/40'}"
+						disabled={switchingWorkspacePath !== null || hasActiveTasks || workspace.is_active}
+						on:click={() => handleSwitchWorkspace(workspace)}
+					>
+						<div class="flex items-start justify-between gap-2">
+							<div class="min-w-0">
+								<div class="line-clamp-1 text-xs font-medium text-gray-700 dark:text-gray-200">
+									{workspace.name}
+								</div>
+								<div class="mt-0.5 line-clamp-1 text-[11px] text-gray-400 dark:text-gray-500">
+									{workspace.path}
+								</div>
+							</div>
+
+							<div class="flex shrink-0 flex-wrap justify-end gap-1">
+								{#if switchingWorkspacePath === workspace.path}
+									<div
+										class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300"
+									>
+										{$i18n.t('Switching')}...
+									</div>
+								{:else if workspace.path === activeHermesWorkspace?.path}
+									<div
+										class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-300"
+									>
+										{$i18n.t('Active workspace')}
+									</div>
+								{/if}
+							</div>
+						</div>
+					</button>
+				{/each}
+			</div>
+
+			{#if hasActiveTasks}
+				<div class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+					{$i18n.t('Cannot switch workspaces while a task is running.')}
 				</div>
 			{/if}
 		</div>
