@@ -121,9 +121,7 @@
 			: isCurrentChat
 				? { label: $i18n.t('Current'), kind: 'current' }
 				: null,
-		hermesSidebarSession?.imported_chat_id
-			? { label: $i18n.t('Imported'), kind: 'imported' }
-			: null
+		hermesSidebarSession?.imported_chat_id ? { label: $i18n.t('Imported'), kind: 'imported' } : null
 	].filter(Boolean);
 	$: fallbackSessionSummary = buildHermesSessionSummaryFromMessages(sessionMessages);
 	$: resolvedSessionSummary = sessionSummary ?? fallbackSessionSummary;
@@ -134,6 +132,16 @@
 	});
 	$: showActivityLine = isCurrentChat || isRunning || selected || mouseOver;
 	$: showSessionMeta = !!sessionMetaLine && (isCurrentChat || isRunning || selected || mouseOver);
+	$: rowStateClass =
+		isCurrentChat || confirmEdit
+			? 'bg-white/96 dark:bg-gray-900/92 selected'
+			: selected
+				? 'bg-gray-50/88 dark:bg-gray-950/72 selected'
+				: 'hover:bg-gray-100/70 dark:hover:bg-gray-950/64';
+	$: rowTitleClass =
+		isCurrentChat || isRunning
+			? 'font-medium text-gray-900 dark:text-gray-100'
+			: 'text-gray-700 dark:text-gray-200';
 
 	const loadChat = async (force = false) => {
 		if ((!force && chat) || chatLoading) {
@@ -456,12 +464,7 @@
 	{#if confirmEdit}
 		<div
 			id="sidebar-chat-item"
-			class=" w-full flex justify-between rounded-xl px-[11px] py-[6px] {id === $chatId ||
-			confirmEdit
-				? 'bg-gray-100 dark:bg-gray-900 selected'
-				: selected
-					? 'bg-gray-100 dark:bg-gray-950 selected'
-					: 'group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis relative {generating
+			class="w-full flex justify-between rounded-xl px-[11px] py-[6px] {rowStateClass} whitespace-nowrap text-ellipsis relative {generating
 				? 'cursor-not-allowed'
 				: ''}"
 		>
@@ -492,12 +495,7 @@
 	{:else}
 		<a
 			id="sidebar-chat-item"
-			class=" w-full flex justify-between rounded-xl px-[11px] py-[7px] {id === $chatId ||
-			confirmEdit
-				? 'bg-gray-100 dark:bg-gray-900 selected'
-				: selected
-					? 'bg-gray-100 dark:bg-gray-950 selected'
-					: ' group-hover:bg-gray-100 dark:group-hover:bg-gray-950'}  whitespace-nowrap text-ellipsis"
+			class="w-full flex justify-between rounded-xl px-[11px] py-[7px] {rowStateClass} whitespace-nowrap text-ellipsis transition-[background-color,box-shadow,color] duration-150"
 			href="/c/{id}"
 			on:click={() => {
 				dispatch('select');
@@ -526,47 +524,44 @@
 			on:focus={(e) => {}}
 			draggable="false"
 		>
-			<div class="flex flex-1 min-w-0 pr-5">
+			<div class="flex flex-1 min-w-0 pr-8">
 				<div class="flex min-w-0 flex-col">
 					<div
 						dir="auto"
-						class="text-left overflow-hidden w-full truncate leading-[1.15rem] {isCurrentChat ||
-						isRunning
-							? 'font-medium text-gray-900 dark:text-gray-100'
-							: ''}"
+						class="text-left overflow-hidden w-full truncate leading-[1.15rem] {rowTitleClass}"
 					>
 						{title}
 					</div>
 
-						{#if showActivityLine || showSessionMeta}
-							<div
-								class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-none text-gray-400 dark:text-gray-500"
-							>
-								{#each hermesStateBadges as badge}
-									<div
-										class="inline-flex items-center gap-1 rounded-full bg-white/80 px-1.5 py-0.5 font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400"
-									>
-										{#if badge.kind === 'running'}
-											<Spinner className="size-2.5" />
-										{:else if badge.kind === 'current'}
-											<span class="inline-flex size-1.5 rounded-full bg-gray-400 dark:bg-gray-500"
-											></span>
-										{/if}
-										<span>{badge.label}</span>
-									</div>
-								{/each}
+					{#if showActivityLine || showSessionMeta}
+						<div
+							class="mt-0.5 flex min-w-0 items-center gap-1.5 text-[10px] leading-none text-gray-400 dark:text-gray-500"
+						>
+							{#each hermesStateBadges as badge}
+								<div
+									class="inline-flex items-center gap-1 rounded-full bg-white/80 px-1.5 py-0.5 font-medium text-gray-500 dark:bg-gray-900 dark:text-gray-400"
+								>
+									{#if badge.kind === 'running'}
+										<Spinner className="size-2.5" />
+									{:else if badge.kind === 'current'}
+										<span class="inline-flex size-1.5 rounded-full bg-gray-400 dark:bg-gray-500"
+										></span>
+									{/if}
+									<span>{badge.label}</span>
+								</div>
+							{/each}
 
-								{#if activityTimestamp}
-									<span class="truncate">{formatTimeAgo(activityTimestamp)}</span>
-								{/if}
+							{#if activityTimestamp}
+								<span class="truncate">{formatTimeAgo(activityTimestamp)}</span>
+							{/if}
 
-								{#if showSessionMeta && sessionMetaLine}
-									<span class="truncate">{sessionMetaLine}</span>
-								{/if}
-							</div>
-						{/if}
-					</div>
+							{#if showSessionMeta && sessionMetaLine}
+								<span class="truncate">{sessionMetaLine}</span>
+							{/if}
+						</div>
+					{/if}
 				</div>
+			</div>
 		</a>
 	{/if}
 
@@ -575,13 +570,13 @@
 		id="sidebar-chat-item-menu"
 		class="
         {id === $chatId || confirmEdit
-			? 'from-gray-100 dark:from-gray-900 selected'
+			? 'opacity-100 pointer-events-auto from-gray-100/95 dark:from-gray-900/95 selected'
 			: selected
-				? 'from-gray-100 dark:from-gray-950 selected'
-				: 'invisible group-hover:visible from-gray-100 dark:from-gray-950'}
+				? 'opacity-100 pointer-events-auto from-gray-100/92 dark:from-gray-950/92 selected'
+				: 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto from-gray-100/90 dark:from-gray-950/90'}
             absolute {className === 'pr-2'
 			? 'right-[8px]'
-			: 'right-1'} top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-linear-to-l from-80%
+			: 'right-1'} top-[4px] py-1 pr-0.5 mr-1.5 pl-5 bg-linear-to-l from-80% transition-opacity duration-150
 
               to-transparent"
 		on:mouseenter={(e) => {

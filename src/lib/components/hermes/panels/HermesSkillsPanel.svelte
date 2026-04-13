@@ -9,14 +9,15 @@
 	import Search from '$lib/components/icons/Search.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Switch from '$lib/components/common/Switch.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
 	import XMark from '$lib/components/icons/XMark.svelte';
 	import ViewSelector from '$lib/components/workspace/common/ViewSelector.svelte';
-	import {
-		hermesProfilesLoaded,
-		hermesProfilesLoading,
-		hermesProfilesStore
-	} from '$lib/stores';
+	import GlobeAlt from '$lib/components/icons/GlobeAlt.svelte';
+	import CodeBracket from '$lib/components/icons/CodeBracket.svelte';
+	import Sparkles from '$lib/components/icons/Sparkles.svelte';
+	import FolderOpen from '$lib/components/icons/FolderOpen.svelte';
+	import BookOpen from '$lib/components/icons/BookOpen.svelte';
+	import WrenchAlt from '$lib/components/icons/WrenchAlt.svelte';
+	import { hermesProfilesLoaded, hermesProfilesLoading, hermesProfilesStore } from '$lib/stores';
 	import { ensureHermesContextBundle } from '$lib/utils/hermesContext';
 
 	const i18n = getContext<any>('i18n');
@@ -132,6 +133,73 @@
 
 	const isSkillPending = (skillId: string) => pendingSkillIds.includes(skillId);
 
+	const getSkillSurface = (skill: any) => {
+		const signature = `${skill?.name ?? ''} ${skill?.description ?? ''}`.toLowerCase();
+
+		if (
+			signature.includes('web') ||
+			signature.includes('search') ||
+			signature.includes('browser')
+		) {
+			return {
+				icon: GlobeAlt,
+				accent: 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300'
+			};
+		}
+
+		if (
+			signature.includes('code') ||
+			signature.includes('repo') ||
+			signature.includes('github') ||
+			signature.includes('debug') ||
+			signature.includes('test')
+		) {
+			return {
+				icon: CodeBracket,
+				accent: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+			};
+		}
+
+		if (
+			signature.includes('file') ||
+			signature.includes('workspace') ||
+			signature.includes('folder')
+		) {
+			return {
+				icon: FolderOpen,
+				accent: 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
+			};
+		}
+
+		if (
+			signature.includes('note') ||
+			signature.includes('memory') ||
+			signature.includes('knowledge') ||
+			signature.includes('document')
+		) {
+			return {
+				icon: BookOpen,
+				accent: 'bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300'
+			};
+		}
+
+		if (
+			signature.includes('tool') ||
+			signature.includes('automation') ||
+			signature.includes('ops')
+		) {
+			return {
+				icon: WrenchAlt,
+				accent: 'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-300'
+			};
+		}
+
+		return {
+			icon: Sparkles,
+			accent: 'bg-gray-100 text-gray-700 dark:bg-white/[0.08] dark:text-gray-200'
+		};
+	};
+
 	const setSkillPending = (skillId: string, pending: boolean) => {
 		pendingSkillIds = pending
 			? pendingSkillIds.includes(skillId)
@@ -233,11 +301,11 @@
 						{$i18n.t('Skill context')}
 					</div>
 					<div class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-						{$i18n.t('Profile skills, visible library items and attached skills')}
+						{$i18n.t('Skill scope in this chat')}
 					</div>
 					<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
 						{$i18n.t(
-							'Profile-available skills come from the active Hermes profile. Visible library skills are the current workspace view. Attached to chat means the skills currently enabled here.'
+							'Profile skills come from Hermes. Visible library skills come from workspace. Attached means enabled in this chat right now.'
 						)}
 					</div>
 				</div>
@@ -263,7 +331,7 @@
 			</div>
 
 			<div class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-				{$i18n.t('Profile scope can be larger than the workspace library visible in this chat shell.')}
+				{$i18n.t('Need to add or edit skills? Open the workspace library from here.')}
 			</div>
 
 			{#if profileLoadError}
@@ -291,7 +359,13 @@
 				class="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
 				href="/workspace/skills"
 			>
-				{$i18n.t('Manage in workspace')}
+				{$i18n.t('Open library')}
+			</a>
+			<a
+				class="rounded-full bg-gray-900 px-2.5 py-1 font-medium text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+				href="/workspace/skills/create"
+			>
+				{$i18n.t('New skill')}
 			</a>
 			{#if loading && loaded}
 				<div class="flex items-center gap-1.5">
@@ -320,8 +394,9 @@
 		{:else}
 			<div class="flex flex-col gap-1.5">
 				{#each items as skill (skill.id)}
+					{@const skillSurface = getSkillSurface(skill)}
 					<div
-						class="rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 transition hover:bg-gray-50 dark:border-gray-800/80 dark:bg-gray-900/50 dark:hover:bg-gray-900 {isSkillPending(
+						class="rounded-xl border border-gray-100/80 bg-white/82 px-3 py-2.5 transition hover:bg-gray-50 dark:border-gray-800/80 dark:bg-gray-900/50 dark:hover:bg-gray-900 {isSkillPending(
 							skill.id
 						)
 							? 'opacity-80'
@@ -330,33 +405,49 @@
 						<div class="flex items-start justify-between gap-3">
 							<button
 								type="button"
-								class="min-w-0 flex-1 text-left"
+								class="min-w-0 flex flex-1 items-start gap-3 text-left"
 								on:click={() => goto(`/workspace/skills/edit?id=${encodeURIComponent(skill.id)}`)}
 							>
-								<div class="flex items-center gap-2">
-									<div class="line-clamp-1 text-sm font-medium text-gray-800 dark:text-gray-100">
-										{skill.name}
-									</div>
-									{#if !skill.is_active}
-										<Badge type="muted" content={$i18n.t('Inactive')} />
-									{/if}
-									{#if !skill.write_access}
-										<Badge type="muted" content={$i18n.t('Read Only')} />
-									{/if}
+								<div
+									class="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl {skillSurface.accent}"
+								>
+									<svelte:component this={skillSurface.icon} class="size-4" />
 								</div>
 
-								{#if skill.description}
-									<div class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400">
-										{skill.description}
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<div class="line-clamp-1 text-sm font-medium text-gray-800 dark:text-gray-100">
+											{skill.name}
+										</div>
+										<div
+											class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+										>
+											{$i18n.t(skill.is_active ? 'Attached' : 'Available')}
+										</div>
+										{#if !skill.write_access}
+											<div
+												class="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+											>
+												{$i18n.t('Read only')}
+											</div>
+										{/if}
 									</div>
-								{/if}
 
-								<div
-									class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
-								>
-									<div>{$i18n.t('By {{name}}', { name: getOwnerLabel(skill) })}</div>
-									<div class="size-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-									<div>{$i18n.t(skill.is_active ? 'Enabled' : 'Disabled')}</div>
+									{#if skill.description}
+										<div
+											class="mt-1 line-clamp-2 text-xs leading-5 text-gray-500 dark:text-gray-400"
+										>
+											{skill.description}
+										</div>
+									{/if}
+
+									<div
+										class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500"
+									>
+										<div>{$i18n.t('By {{name}}', { name: getOwnerLabel(skill) })}</div>
+										<div class="size-1 rounded-full bg-gray-300 dark:bg-gray-600"></div>
+										<div>{$i18n.t(skill.is_active ? 'Enabled in this chat' : 'Not attached')}</div>
+									</div>
 								</div>
 							</button>
 

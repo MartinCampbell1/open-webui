@@ -1,0 +1,18 @@
+Continue the same replay conversation, but stop gathering more context.
+
+You now have enough baseline sections and enough dirty-worktree diffs.
+Apply the replay NOW in narrow slices.
+
+Apply only these categories:
+1. Messages.svelte: safe auto-scroll / load-more / message-list responsiveness improvements.
+2. Chat.svelte: safe draft persistence throttling, scheduleScrollToBottom usage, composer prompt access fixes, and removal of hot-path debug logs — but do not alter preserved sidebar/session/workspace structure.
+3. MessageInput.svelte: remove safe debug logging and any safe composer-path cleanup.
+4. app.css: only the calm reading rhythm tightening.
+5. Sidebar/ChatItem.svelte: only the calmer density/hover cleanup that does not change session semantics.
+6. Navbar.svelte: only wording/noise cleanup that does not alter the preserved top-level right-sidebar behavior.
+7. ResponseMessage.svelte/UserMessage.svelte: only safe performance-oriented or semantic-noise reductions.
+
+Do NOT spend more turns reading unless absolutely necessary for one exact hunk.
+Patch files directly now.
+Then run lightweight verification.
+Then return the concrete replay summary.

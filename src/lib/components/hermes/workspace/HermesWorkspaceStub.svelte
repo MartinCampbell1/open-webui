@@ -128,7 +128,9 @@
 	$: selectedItem = selectedWorkspaceItem ?? selectedChatItem ?? null;
 	$: hasActiveTasks = (taskIds?.length ?? 0) > 0;
 	$: workspaceBrowserEntries = (
-		workspaceTreeEntriesByPath[currentWorkspacePath] ?? workspaceBrowseEntries ?? []
+		workspaceTreeEntriesByPath[currentWorkspacePath] ??
+		workspaceBrowseEntries ??
+		[]
 	)
 		.filter((entry) => !!entry?.name)
 		.sort((left, right) => {
@@ -223,16 +225,16 @@
 			: null;
 		workspaceBrowseLoaded = false;
 		workspaceBrowseLoading = false;
-			workspaceBrowseError = '';
-			workspaceBrowsePath = '';
-			workspaceBrowseRootPath = '';
-			workspaceBrowseEntries = [];
-			workspaceTreeEntriesByPath = {};
-			workspaceTreeExpandedPaths = [];
-			workspaceTreeLoadingPaths = [];
-			loadedItemId = null;
-			clearPreviewState();
-		}
+		workspaceBrowseError = '';
+		workspaceBrowsePath = '';
+		workspaceBrowseRootPath = '';
+		workspaceBrowseEntries = [];
+		workspaceTreeEntriesByPath = {};
+		workspaceTreeExpandedPaths = [];
+		workspaceTreeLoadingPaths = [];
+		loadedItemId = null;
+		clearPreviewState();
+	}
 
 	$: if (selectedItemId && !workspaceItems.some((item) => item.id === selectedItemId)) {
 		selectedItemId = null;
@@ -248,18 +250,18 @@
 
 		workspaceBrowseLoaded = false;
 		workspaceBrowseLoading = false;
-			workspaceBrowseError = '';
-			workspaceBrowsePath = canRestoreWorkspaceState
-				? (workspaceContinuityState.browsePath ?? '')
-				: '';
-			workspaceBrowseRootPath = nextRootPath;
-			workspaceBrowseEntries = [];
-			workspaceTreeEntriesByPath = {};
-			workspaceTreeExpandedPaths = nextRootPath ? [normalizeWorkspacePath(nextRootPath)] : [];
-			workspaceTreeLoadingPaths = [];
-			selectedWorkspaceItem =
-				canRestoreWorkspaceState && workspaceContinuityState.previewReference
-					? createWorkspaceSurfaceItem(workspaceContinuityState.previewReference)
+		workspaceBrowseError = '';
+		workspaceBrowsePath = canRestoreWorkspaceState
+			? (workspaceContinuityState.browsePath ?? '')
+			: '';
+		workspaceBrowseRootPath = nextRootPath;
+		workspaceBrowseEntries = [];
+		workspaceTreeEntriesByPath = {};
+		workspaceTreeExpandedPaths = nextRootPath ? [normalizeWorkspacePath(nextRootPath)] : [];
+		workspaceTreeLoadingPaths = [];
+		selectedWorkspaceItem =
+			canRestoreWorkspaceState && workspaceContinuityState.previewReference
+				? createWorkspaceSurfaceItem(workspaceContinuityState.previewReference)
 				: null;
 
 		if (!canRestoreWorkspaceState) {
@@ -510,7 +512,10 @@
 			return null;
 		}
 
-		return (workspaceTreeEntriesByPath[parentPath] ?? []).find((entry) => entry.name === entryName) ?? null;
+		return (
+			(workspaceTreeEntriesByPath[parentPath] ?? []).find((entry) => entry.name === entryName) ??
+			null
+		);
 	};
 
 	const getFileContentUrl = (item: HermesWorkspaceSurfaceItem) => {
@@ -687,7 +692,8 @@
 
 		workspaceBrowseRootPath = rootBrowse.root_path ?? rootPath;
 		workspaceBrowsePath = targetPath || rootPath;
-		workspaceBrowseEntries = workspaceTreeEntriesByPath[workspaceBrowsePath] ?? rootBrowse.entries ?? [];
+		workspaceBrowseEntries =
+			workspaceTreeEntriesByPath[workspaceBrowsePath] ?? rootBrowse.entries ?? [];
 		persistWorkspaceContinuityState({
 			rootPath: workspaceBrowseRootPath || rootPath,
 			browsePath: workspaceBrowsePath || rootPath
@@ -708,7 +714,9 @@
 		persistWorkspaceContinuityState({
 			previewReference: null
 		});
-		workspaceTreeExpandedPaths = [...new Set(getWorkspacePathHierarchy(normalizedParent, workspaceBrowseRootPath))];
+		workspaceTreeExpandedPaths = [
+			...new Set(getWorkspacePathHierarchy(normalizedParent, workspaceBrowseRootPath))
+		];
 		await loadWorkspaceBrowse(normalizedParent);
 	};
 
@@ -750,8 +758,7 @@
 		if (isExpanded && normalizedPath !== normalizedRootPath) {
 			workspaceTreeExpandedPaths = workspaceTreeExpandedPaths.filter(
 				(expandedPath) =>
-					expandedPath !== normalizedPath &&
-					!expandedPath.startsWith(`${normalizedPath}/`)
+					expandedPath !== normalizedPath && !expandedPath.startsWith(`${normalizedPath}/`)
 			);
 			workspaceBrowsePath = normalizedPath;
 			workspaceBrowseEntries = workspaceTreeEntriesByPath[normalizedPath] ?? [];
@@ -1105,7 +1112,11 @@
 				description={$i18n.t(
 					'Workspace tree, linked outputs, and linked attachments will surface here as the conversation produces them.'
 				)}
-				metaItems={[$i18n.t('Workspace tree'), $i18n.t('Linked outputs'), $i18n.t('Linked attachments')]}
+				metaItems={[
+					$i18n.t('Workspace tree'),
+					$i18n.t('Linked outputs'),
+					$i18n.t('Linked attachments')
+				]}
 			/>
 			<div class="px-3 text-[11px] leading-5 text-gray-500 dark:text-gray-400">
 				{$i18n.t('This surface stays first-class even before the session writes anything.')}
@@ -1113,9 +1124,11 @@
 		</div>
 	{:else if selectedItem}
 		<div
-			class="mx-2 rounded-xl border border-gray-100/80 bg-white/90 dark:border-gray-800/80 dark:bg-gray-900/50"
+			class="mx-2 flex flex-1 min-h-0 flex-col overflow-hidden rounded-xl border border-gray-100/80 bg-white/90 dark:border-gray-800/80 dark:bg-gray-900/50"
 		>
-			<div class="flex flex-wrap gap-1.5 border-b border-gray-100 px-3 py-2 dark:border-gray-800">
+			<div
+				class="flex shrink-0 flex-wrap gap-1.5 border-b border-gray-100 px-3 py-2 dark:border-gray-800"
+			>
 				<button
 					class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
 					on:click={closePreview}
@@ -1151,7 +1164,7 @@
 				</button>
 			</div>
 
-			<div class="border-b border-gray-100 px-3 py-2 dark:border-gray-800">
+			<div class="shrink-0 border-b border-gray-100 px-3 py-2 dark:border-gray-800">
 				<div class="line-clamp-1 text-sm font-medium text-gray-800 dark:text-gray-100">
 					{selectedItem.name}
 				</div>
@@ -1174,7 +1187,7 @@
 				{/if}
 			</div>
 
-			<div class="flex min-h-[18rem] flex-1 overflow-hidden">
+			<div class="flex min-h-0 flex-1 overflow-hidden">
 				{#if selectedItemLoading}
 					<div class="flex h-full w-full items-center justify-center">
 						<Spinner className="size-4" />
@@ -1299,11 +1312,15 @@
 							<div
 								class="m-3 flex flex-1 min-h-0 items-center justify-center rounded-xl border border-dashed border-gray-200/80 bg-gray-50/70 px-4 py-4 text-center text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
 							>
-								{$i18n.t('This workspace tree is empty. Hermes will surface folders and files here once the session writes them.')}
+								{$i18n.t(
+									'This workspace tree is empty. Hermes will surface folders and files here once the session writes them.'
+								)}
 							</div>
 						{:else}
 							{#if workspaceBrowserEntries.length === 0}
-								<div class="border-b border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400">
+								<div
+									class="border-b border-gray-100 px-3 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:text-gray-400"
+								>
 									{$i18n.t(
 										'This folder is empty. Keep browsing the tree or return to the workspace root.'
 									)}
@@ -1343,7 +1360,8 @@
 							<svelte:fragment slot="actions">
 								<button
 									class="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-950 dark:text-gray-300 dark:hover:bg-gray-900"
-									on:click={() => latestGeneratedWorkspaceItem && selectItem(latestGeneratedWorkspaceItem)}
+									on:click={() =>
+										latestGeneratedWorkspaceItem && selectItem(latestGeneratedWorkspaceItem)}
 									disabled={!latestGeneratedWorkspaceItem}
 								>
 									{$i18n.t('Open latest output')}
@@ -1391,7 +1409,6 @@
 						{$i18n.t('Switch the active Hermes workspace without leaving the current chat shell.')}
 					</div>
 				</div>
-
 			</div>
 
 			<div class="mt-2 flex flex-col gap-1.5">

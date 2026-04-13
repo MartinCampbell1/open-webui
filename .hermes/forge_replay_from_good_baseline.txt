@@ -1,0 +1,50 @@
+You are working in a clean worktree checked out at commit ee465f165, which is being treated as the last known good functional baseline.
+
+Critical instruction:
+Do NOT preserve the current dirty worktree structure blindly. Instead, preserve THIS clean baseline's workspace/session/dialog/right-sidebar behavior, and selectively port only the genuinely good later improvements from the dirty worktree at:
+/Users/martin/open-webui
+
+What to port from the dirty worktree, selectively:
+- calmer reading rhythm / typography tightening where it does not remove later-good UI structure
+- performance/responsiveness fixes in transcript/composer/message hot paths where safe
+- calmer sidebar density improvements where safe
+- wording cleanup that reduces noisy Hermes/browser-model clutter where safe
+
+What to preserve from THIS baseline ee465f165:
+- the richer right-sidebar structure
+- the intended session/dialog/archive surfacing
+- the intended workspace/project-files presentation
+- the intended tab/header structure that the user preferred in the later stable state
+
+Do not use the older restore snapshot as an anchor.
+Do not manually reconstruct feature-by-feature from memory.
+Treat this task as: replay good improvements onto a known-good baseline.
+
+Scope for this pass:
+1. Inspect the diff between this clean worktree and /Users/martin/open-webui.
+2. Identify which changes are clearly good and portable.
+3. Apply only those onto this clean baseline.
+4. Keep the clean baseline’s right-sidebar/session/workspace/dialog structure intact.
+5. Run lightweight verification only.
+
+Priority files likely involved:
+- src/lib/components/chat/Chat.svelte
+- src/lib/components/chat/Messages.svelte
+- src/lib/components/chat/Messages/ResponseMessage.svelte
+- src/lib/components/chat/Messages/UserMessage.svelte
+- src/lib/components/chat/MessageInput.svelte
+- src/app.css
+- src/lib/components/layout/Sidebar/ChatItem.svelte
+- src/lib/components/chat/Navbar.svelte
+
+Avoid re-porting the regressed top context strip if it is not part of the good baseline.
+Avoid flattening or hiding Archive/dialog/session surfaces.
+Avoid compressing the workspace surface away from its richer baseline presentation.
+
+Final deliverable:
+1. Which improvements were replayed from the dirty worktree.
+2. Which files changed.
+3. Verification performed.
+4. Whether this replay target should now be closer to the user’s intended stable version.
+
+Do the replay now.

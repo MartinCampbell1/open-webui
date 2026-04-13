@@ -103,15 +103,15 @@ textarea::placeholder {
 }
 
 .markdown-prose {
-	@apply prose dark:prose-invert prose-blockquote:border-s-gray-100 prose-blockquote:dark:border-gray-800 prose-blockquote:border-s-2 prose-blockquote:not-italic prose-blockquote:font-normal  prose-headings:font-semibold prose-hr:my-4 prose-hr:border-gray-50 prose-hr:dark:border-gray-850 prose-p:my-0 prose-img:my-1 prose-headings:my-1 prose-pre:my-0 prose-table:my-0 prose-blockquote:my-0 prose-ul:-my-0 prose-ol:-my-0 prose-li:-my-0 whitespace-pre-line;
+	@apply prose dark:prose-invert max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-gray-900 prose-headings:dark:text-white/92 prose-strong:font-semibold prose-p:my-3.5 prose-p:text-[15.5px] prose-p:leading-[1.72] prose-p:text-gray-800 prose-p:dark:text-white/90 prose-a:font-normal prose-a:text-gray-800 prose-a:dark:text-white/88 prose-a:underline prose-a:underline-offset-4 prose-a:decoration-gray-300 prose-a:dark:decoration-white/20 prose-a:decoration-1 prose-img:my-3 prose-headings:my-0 prose-h1:mt-7 prose-h1:mb-3 prose-h1:text-[30px] prose-h1:leading-9 prose-h2:mt-7 prose-h2:mb-3 prose-h2:text-[24px] prose-h2:leading-8 prose-h3:mt-5 prose-h3:mb-2 prose-h3:text-[20px] prose-h3:leading-7 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:bg-gray-100 prose-code:text-gray-700 prose-code:dark:bg-white/[0.08] prose-code:dark:text-white/78 prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-pre:my-4 prose-pre:rounded-xl prose-pre:border prose-pre:border-gray-200/70 prose-pre:bg-gray-50/92 prose-pre:px-4 prose-pre:py-3.5 prose-pre:dark:border-white/8 prose-pre:dark:bg-white/[0.05] prose-pre:shadow-none prose-table:my-4 prose-blockquote:my-4 prose-blockquote:rounded-xl prose-blockquote:border-s-2 prose-blockquote:border-s-gray-200 prose-blockquote:bg-gray-50/80 prose-blockquote:px-4 prose-blockquote:py-2.5 prose-blockquote:dark:border-white/14 prose-blockquote:dark:bg-white/[0.03] prose-blockquote:not-italic prose-blockquote:font-normal prose-blockquote:text-gray-600 prose-blockquote:dark:text-white/68 prose-blockquote:pl-3.5 prose-hr:my-6 prose-hr:border-gray-200/70 prose-hr:dark:border-white/8 prose-ul:my-3 prose-ol:my-3 prose-li:my-1 prose-li:leading-[1.68] whitespace-pre-line;
 }
 
 .markdown-prose-sm {
-	@apply text-sm prose dark:prose-invert prose-blockquote:border-s-gray-100 prose-blockquote:dark:border-gray-800 prose-blockquote:border-s-2 prose-blockquote:not-italic prose-blockquote:font-normal  prose-headings:font-semibold prose-hr:my-2  prose-hr:border-gray-50 prose-hr:dark:border-gray-850 prose-p:my-0 prose-img:my-1 prose-headings:my-1 prose-pre:my-0 prose-table:my-0 prose-blockquote:my-0 prose-ul:-my-0 prose-ol:-my-0 prose-li:-my-0 whitespace-pre-line;
+	@apply text-sm prose dark:prose-invert max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-headings:text-gray-900 prose-headings:dark:text-white/92 prose-p:my-2.5 prose-p:text-[14.5px] prose-p:leading-[1.68] prose-p:text-gray-800 prose-p:dark:text-white/88 prose-a:font-normal prose-a:underline prose-a:underline-offset-4 prose-a:decoration-gray-300 prose-a:dark:decoration-white/20 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:bg-gray-100 prose-code:text-gray-700 prose-code:dark:bg-white/[0.08] prose-code:dark:text-white/74 prose-code:font-medium prose-code:before:content-none prose-code:after:content-none prose-h2:mt-5 prose-h2:mb-2 prose-h2:text-[22px] prose-h2:leading-7 prose-h3:mt-4 prose-h3:mb-2 prose-h3:text-[18px] prose-h3:leading-6 prose-pre:my-3.5 prose-pre:rounded-xl prose-pre:border prose-pre:border-gray-200/70 prose-pre:bg-gray-50/92 prose-pre:px-4 prose-pre:py-3 prose-pre:dark:border-white/8 prose-pre:dark:bg-white/[0.05] prose-blockquote:my-3.5 prose-blockquote:rounded-lg prose-blockquote:border-s-2 prose-blockquote:border-s-gray-200 prose-blockquote:bg-gray-50/80 prose-blockquote:px-3.5 prose-blockquote:py-2 prose-blockquote:dark:border-white/14 prose-blockquote:dark:bg-white/[0.03] prose-blockquote:not-italic prose-blockquote:font-normal prose-blockquote:text-gray-600 prose-blockquote:dark:text-white/66 prose-blockquote:pl-3.5 prose-hr:my-5 prose-hr:border-gray-200/70 prose-hr:dark:border-white/8 prose-ul:my-2.5 prose-ol:my-2.5 prose-li:my-1 prose-li:leading-[1.62] whitespace-pre-line;
 }
 
 .markdown-prose-xs {
-	@apply text-xs prose dark:prose-invert prose-blockquote:border-s-gray-100 prose-blockquote:dark:border-gray-800 prose-blockquote:border-s-2 prose-blockquote:not-italic prose-blockquote:font-normal  prose-headings:font-semibold prose-hr:my-0.5  prose-hr:border-gray-50 prose-hr:dark:border-gray-850 prose-p:my-0 prose-img:my-1 prose-headings:my-1 prose-pre:my-0 prose-table:my-0 prose-blockquote:my-0 prose-ul:-my-0 prose-ol:-my-0 prose-li:-my-0 whitespace-pre-line;
+	@apply text-xs prose dark:prose-invert prose-blockquote:border-s-gray-100 prose-blockquote:dark:border-gray-700 prose-blockquote:border-s-2 prose-blockquote:not-italic prose-blockquote:font-normal prose-headings:font-semibold prose-headings:tracking-tight prose-hr:my-2.5 prose-hr:border-gray-200/60 prose-hr:dark:border-white/10 prose-p:my-1.5 prose-p:leading-5 prose-img:my-1 prose-headings:my-0 prose-h2:mt-4 prose-h2:mb-1.5 prose-h3:mt-4 prose-h3:mb-1 prose-pre:my-2.5 prose-pre:rounded-lg prose-pre:border prose-pre:border-gray-100/80 prose-pre:dark:border-white/6 prose-pre:bg-gray-50/80 prose-pre:dark:bg-white/[0.05] prose-table:my-2 prose-blockquote:my-2 prose-ul:my-1.5 prose-ol:my-1.5 prose-li:my-0.5 prose-li:leading-5 whitespace-pre-line;
 }
 
 .markdown a {
@@ -120,6 +120,30 @@ textarea::placeholder {
 
 .font-primary {
 	font-family: 'Archivo', 'Vazirmatn', sans-serif;
+}
+
+.chat-user.markdown-prose p {
+	@apply my-2.5 text-[15px] leading-[1.58] font-normal text-gray-700 dark:text-gray-200;
+}
+
+.chat-user.markdown-prose ul,
+.chat-user.markdown-prose ol {
+	@apply my-2;
+}
+
+.chat-user.markdown-prose li {
+	@apply my-0.5 leading-[1.58];
+}
+
+.chat-user.markdown-prose h1,
+.chat-user.markdown-prose h2,
+.chat-user.markdown-prose h3,
+.chat-user.markdown-prose h4 {
+	@apply mt-3 mb-1.5 text-[1rem] leading-6;
+}
+
+.chat-user.markdown-prose blockquote {
+	@apply my-3 rounded-lg border-s-2 border-gray-200 bg-gray-100/70 px-3 py-2 text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/70;
 }
 
 .drag-region {

@@ -182,13 +182,13 @@
 			? [{ id: 'history', label: $i18n.t('Archive') }]
 			: []),
 		...(showFilesTab ? [{ id: 'files', label: $i18n.t('Workspace') }] : []),
-		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Live run') }] : [])
+		...(showTasksTab ? [{ id: 'tasks', label: $i18n.t('Run') }] : [])
 	] as PanelTab[];
 	$: inspectTabs = [
 		...(showProfileTab ? [{ id: 'profile', label: $i18n.t('Profile') }] : []),
 		...(showSkillsTab ? [{ id: 'skills', label: $i18n.t('Skills') }] : []),
 		...(showMemoryTab ? [{ id: 'memory', label: $i18n.t('Memory') }] : []),
-		...(showOverviewTab ? [{ id: 'overview', label: $i18n.t('Overview') }] : []),
+		...(showOverviewTab ? [{ id: 'overview', label: $i18n.t('Conversation map') }] : []),
 		...(showTodosTab ? [{ id: 'todos', label: $i18n.t('Todos') }] : []),
 		...(showAdvancedTab ? [{ id: 'controls', label: $i18n.t('Advanced') }] : [])
 	] as PanelTab[];
@@ -235,7 +235,8 @@
 					itemCount: workspaceStatus.itemCount ?? defaultWorkspaceStatus.itemCount
 				}
 			: defaultWorkspaceStatus;
-	$: activeHermesWorkspaceItem = $hermesWorkspacesStore?.items?.find((item) => item.is_active) ?? null;
+	$: activeHermesWorkspaceItem =
+		$hermesWorkspacesStore?.items?.find((item) => item.is_active) ?? null;
 	$: activeHermesWorkspaceName = activeHermesWorkspaceItem?.name ?? '';
 	$: activeHermesWorkspacePath = activeHermesWorkspaceItem?.path ?? '';
 	$: workspaceTitle =
@@ -277,9 +278,11 @@
 	$: workspaceSelectionLabel = effectiveWorkspaceStatus.selectedFileName
 		? $i18n.t('Previewing {{NAME}}', { NAME: effectiveWorkspaceStatus.selectedFileName })
 		: '';
-	$: workspaceMetaItems = [workspacePathLabel, workspaceItemCountLabel, workspaceSelectionLabel].filter(
-		Boolean
-	);
+	$: workspaceMetaItems = [
+		workspacePathLabel,
+		workspaceItemCountLabel,
+		workspaceSelectionLabel
+	].filter(Boolean);
 	$: panelContextSummary = buildHermesContextSummary({
 		chatHermesSession,
 		chatMeta,
@@ -657,41 +660,41 @@
 							on:close={() => showControls.set(false)}
 						/>
 					</div>
-					{:else if $showEmbeds}
-						<Embeds />
-					{:else if $showArtifacts}
-						<Artifacts />
+				{:else if $showEmbeds}
+					<Embeds />
+				{:else if $showArtifacts}
+					<Artifacts />
 				{:else}
 					<!-- Controls + Workspace tabs -->
-							<div class="flex flex-col h-full min-h-0">
-								<!-- Tab bar -->
-								<div class="flex items-center justify-between px-2 pt-2 pb-2 shrink-0">
-									<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
-										{#each primaryTabs as tab}
-											<button
-												class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
-												tab.id
-													? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
-													: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
-												on:click={() => (activeTab = tab.id)}
-											>
-												{tab.label}
-											</button>
-										{/each}
-										{#if inspectTabs.length > 0}
-											<div class="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-800"></div>
-											<button
-												class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {(inspectTabsExpanded ||
-												activeTabInInspectGroup)
-													? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
-													: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
-												on:click={toggleInspectTabs}
-											>
-												{$i18n.t('Inspect')}
-											</button>
-										{/if}
-									</div>
+					<div class="flex flex-col h-full min-h-0">
+						<!-- Tab bar -->
+						<div class="flex items-center justify-between px-2 pt-2 pb-2 shrink-0">
+							<div class="flex gap-1 min-w-0 overflow-x-auto scrollbar-hidden">
+								{#each primaryTabs as tab}
 									<button
+										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {activeTab ===
+										tab.id
+											? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+											: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+										on:click={() => (activeTab = tab.id)}
+									>
+										{tab.label}
+									</button>
+								{/each}
+								{#if inspectTabs.length > 0}
+									<div class="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-800"></div>
+									<button
+										class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {inspectTabsExpanded ||
+										activeTabInInspectGroup
+											? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
+											: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
+										on:click={toggleInspectTabs}
+									>
+										{$i18n.t('Inspect')}
+									</button>
+								{/if}
+							</div>
+							<button
 								class="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition text-gray-500 dark:text-gray-400"
 								on:click={() => showControls.set(false)}
 								aria-label={$i18n.t('Close')}
@@ -705,28 +708,28 @@
 									class="size-4"
 								>
 									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-										</svg>
-									</button>
-								</div>
-								{#if inspectTabsExpanded && inspectTabs.length > 0}
-									<div
-										class="flex gap-1 overflow-x-auto border-b border-gray-100 px-2 pb-2 dark:border-gray-800"
-									>
-										{#each inspectTabs as tab}
-											<button
-												class="px-2.5 py-1 text-[11px] rounded-full transition whitespace-nowrap {activeTab ===
-												tab.id
-													? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-													: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}"
-												on:click={() => (activeTab = tab.id)}
-											>
-												{tab.label}
-											</button>
-										{/each}
-									</div>
-								{/if}
-
+								</svg>
+							</button>
+						</div>
+						{#if inspectTabsExpanded && inspectTabs.length > 0}
 							<div
+								class="flex gap-1 overflow-x-auto border-b border-gray-100 px-2 pb-2 dark:border-gray-800"
+							>
+								{#each inspectTabs as tab}
+									<button
+										class="px-2.5 py-1 text-[11px] rounded-full transition whitespace-nowrap {activeTab ===
+										tab.id
+											? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+											: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}"
+										on:click={() => (activeTab = tab.id)}
+									>
+										{tab.label}
+									</button>
+								{/each}
+							</div>
+						{/if}
+
+						<div
 							class="flex-1 min-h-0 {activeTab === 'overview'
 								? 'h-full'
 								: activeTab === 'controls'
@@ -735,13 +738,14 @@
 						>
 							{#if showPrimaryContextSummary}
 								<div class="px-3 pt-3 pb-2">
-								<div
-									class="rounded-xl border border-gray-100/80 bg-white/80 px-3 py-3 dark:border-gray-800/80 dark:bg-gray-900/50"
-								>
-									<div class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
-											{$i18n.t('Current context')}
-									</div>
-
+									<div
+										class="rounded-xl border border-gray-100/80 bg-white/80 px-3 py-3 dark:border-gray-800/80 dark:bg-gray-900/50"
+									>
+										<div
+											class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+										>
+											{$i18n.t('Current chat context')}
+										</div>
 										<div class="mt-2">
 											<HermesContextBar
 												summary={panelContextSummary}
@@ -759,7 +763,9 @@
 											<div class="mt-3 grid grid-cols-2 gap-2">
 												{#each panelStats as stat}
 													<div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950/70">
-														<div class="text-[11px] uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
+														<div
+															class="text-[11px] uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+														>
 															{stat.label}
 														</div>
 														<div class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
@@ -774,8 +780,10 @@
 							{:else if showInspectContextSummary}
 								<div class="px-3 pt-3 pb-1">
 									<div class="rounded-xl bg-gray-50/80 px-3 py-2 dark:bg-gray-900/40">
-										<div class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
-											{$i18n.t('Inspect')}
+										<div
+											class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+										>
+											{$i18n.t('Inspect chat setup')}
 										</div>
 										<div class="mt-2">
 											<HermesContextBar
@@ -789,7 +797,6 @@
 									</div>
 								</div>
 							{/if}
-
 							{#if activeTab === 'overview'}
 								<Overview
 									{history}
@@ -905,20 +912,20 @@
 
 	<Pane
 		bind:pane
-			defaultSize={0}
-			onResize={(size) => {
-				if ($showControls && pane?.isExpanded()) {
-					if (size < minSize) pane.resize(minSize);
-					if (size < minSize) {
-						localStorage.chatControlsSize = 0;
-					} else {
-						const container = document.getElementById('chat-container');
-						if (container?.clientWidth) {
-							localStorage.chatControlsSize = Math.floor((size / 100) * container.clientWidth);
-						}
+		defaultSize={0}
+		onResize={(size) => {
+			if ($showControls && pane?.isExpanded()) {
+				if (size < minSize) pane.resize(minSize);
+				if (size < minSize) {
+					localStorage.chatControlsSize = 0;
+				} else {
+					const container = document.getElementById('chat-container');
+					if (container?.clientWidth) {
+						localStorage.chatControlsSize = Math.floor((size / 100) * container.clientWidth);
 					}
 				}
-			}}
+			}
+		}}
 		onCollapse={() => {
 			if (paneReady) showControls.set(false);
 		}}
@@ -948,10 +955,10 @@
 								on:close={() => showControls.set(false)}
 							/>
 						</div>
-						{:else if $showEmbeds}
-							<Embeds overlay={dragged} />
-						{:else if $showArtifacts}
-							<Artifacts overlay={dragged} />
+					{:else if $showEmbeds}
+						<Embeds overlay={dragged} />
+					{:else if $showArtifacts}
+						<Artifacts overlay={dragged} />
 					{:else}
 						<!-- Controls + Workspace tabs -->
 						<div class="flex flex-col h-full min-h-0">
@@ -972,8 +979,8 @@
 									{#if inspectTabs.length > 0}
 										<div class="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-800"></div>
 										<button
-											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {(inspectTabsExpanded ||
-											activeTabInInspectGroup)
+											class="px-2.5 py-1 text-sm rounded-lg transition whitespace-nowrap {inspectTabsExpanded ||
+											activeTabInInspectGroup
 												? 'bg-gray-100 dark:bg-gray-800 font-medium text-gray-900 dark:text-white'
 												: 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}"
 											on:click={toggleInspectTabs}
@@ -1029,7 +1036,9 @@
 										<div
 											class="rounded-xl border border-gray-100/80 bg-white/80 px-3 py-3 dark:border-gray-800/80 dark:bg-gray-900/50"
 										>
-											<div class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
+											<div
+												class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+											>
 												{$i18n.t('Current context')}
 											</div>
 
@@ -1050,10 +1059,14 @@
 												<div class="mt-3 grid grid-cols-2 gap-2">
 													{#each panelStats as stat}
 														<div class="rounded-xl bg-gray-50 px-3 py-2 dark:bg-gray-950/70">
-															<div class="text-[11px] uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
+															<div
+																class="text-[11px] uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+															>
 																{stat.label}
 															</div>
-															<div class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+															<div
+																class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-200"
+															>
 																{stat.value}
 															</div>
 														</div>
@@ -1065,7 +1078,9 @@
 								{:else if showInspectContextSummary}
 									<div class="px-3 pt-3 pb-1">
 										<div class="rounded-xl bg-gray-50/80 px-3 py-2 dark:bg-gray-900/40">
-											<div class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500">
+											<div
+												class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+											>
 												{$i18n.t('Inspect')}
 											</div>
 											<div class="mt-2">

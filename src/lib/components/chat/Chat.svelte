@@ -1288,8 +1288,6 @@ const HERMES_ONLY_CHAT = true;
 	};
 
 	const chatEventHandler = async (event, cb) => {
-		console.log(event);
-
 		if (event.chat_id === $chatId) {
 			await tick();
 			let message = history.messages[event.message_id];
@@ -1470,8 +1468,6 @@ const HERMES_ONLY_CHAT = true;
 		}
 
 		if (type === 'action:submit') {
-			console.debug(event.data.text);
-
 			if (prompt !== '') {
 				await tick();
 				submitPrompt(prompt);
@@ -1479,8 +1475,6 @@ const HERMES_ONLY_CHAT = true;
 		}
 
 		if (type === 'input:prompt') {
-			console.debug(event.data.text);
-
 			const inputElement = document.getElementById('chat-input');
 
 			if (inputElement) {
@@ -1490,8 +1484,6 @@ const HERMES_ONLY_CHAT = true;
 		}
 
 		if (type === 'input:prompt:submit') {
-			console.debug(event.data.text);
-
 			if (event.data.text !== '') {
 				if (isSameOrigin) {
 					await tick();
@@ -1539,7 +1531,6 @@ const HERMES_ONLY_CHAT = true;
 	};
 
 	onMount(() => {
-		console.log('mounted');
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
 
@@ -4149,6 +4140,7 @@ const HERMES_ONLY_CHAT = true;
 
 	const MAX_DRAFT_LENGTH = 5000;
 	let saveDraftTimeout: ReturnType<typeof setTimeout> | null = null;
+	let lastSavedDraftPayload = '';
 
 	const saveDraft = async (draft, chatId = null) => {
 		if (saveDraftTimeout) {
@@ -4157,12 +4149,24 @@ const HERMES_ONLY_CHAT = true;
 
 		if (draft.prompt !== null && draft.prompt.length < MAX_DRAFT_LENGTH) {
 			saveDraftTimeout = setTimeout(async () => {
-				await sessionStorage.setItem(
-					`chat-input${chatId ? `-${chatId}` : ''}`,
-					JSON.stringify(draft)
-				);
-			}, 500);
+				const persistDraft = () => {
+					const serializedDraft = JSON.stringify(draft);
+					if (serializedDraft === lastSavedDraftPayload) {
+						return;
+					}
+
+					lastSavedDraftPayload = serializedDraft;
+					sessionStorage.setItem(`chat-input${chatId ? `-${chatId}` : ''}`, serializedDraft);
+				};
+
+				if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+					window.requestIdleCallback(() => persistDraft(), { timeout: 300 });
+				} else {
+					persistDraft();
+				}
+			}, 800);
 		} else {
+			lastSavedDraftPayload = '';
 			sessionStorage.removeItem(`chat-input${chatId ? `-${chatId}` : ''}`);
 		}
 	};
@@ -4171,6 +4175,7 @@ const HERMES_ONLY_CHAT = true;
 		if (saveDraftTimeout) {
 			clearTimeout(saveDraftTimeout);
 		}
+		lastSavedDraftPayload = '';
 		await sessionStorage.removeItem(`chat-input${chatId ? `-${chatId}` : ''}`);
 	};
 

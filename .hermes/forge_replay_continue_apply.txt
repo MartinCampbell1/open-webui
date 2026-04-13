@@ -1,0 +1,29 @@
+Continue the existing replay conversation.
+
+You already collected the baseline-vs-dirty diffs. Now stop auditing and apply the replay.
+
+Task:
+- In this clean baseline worktree (/Users/martin/open-webui-replay-ee465f), port only the genuinely good changes from /Users/martin/open-webui into the baseline files.
+- Preserve this baseline’s right-sidebar/session/dialog/archive/workspace structure.
+- Do not reintroduce the stripped top context strip.
+- Do not hide Archive.
+- Do not compress away the richer workspace presentation.
+
+Priority replay targets:
+- performance/responsiveness improvements in Chat.svelte, Messages.svelte, ResponseMessage.svelte, UserMessage.svelte, MessageInput.svelte
+- calmer typography/spacing in src/app.css if safe
+- calmer sidebar density in Sidebar/ChatItem.svelte if safe
+- wording cleanup in Navbar.svelte only if it does not regress baseline behavior
+
+Execution rule:
+- Apply concrete patches now.
+- Prefer selective hunks, not whole-file replacement, unless a full-file replacement is clearly safe for that file.
+- Then run lightweight verification only.
+
+Deliverable:
+1. What you actually replayed.
+2. Exact files changed.
+3. Verification performed.
+4. Whether the replay target is now meaningfully closer to the intended stable version.
+
+Do the replay now.

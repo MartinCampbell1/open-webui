@@ -496,6 +496,11 @@ _HERMES_STATIC_FALLBACKS = {
     'site.webmanifest',
 }
 
+_HERMES_ICON_OUTER = '#0f1115'
+_HERMES_ICON_INNER = '#18181b'
+_HERMES_ICON_BORDER = '#71717a'
+_HERMES_ICON_MARK = '#f5f5f5'
+
 
 def _safe_static_path(path: str) -> Path | None:
     candidate = (_STATIC_ROOT / path).resolve()
@@ -506,11 +511,11 @@ def _safe_static_path(path: str) -> Path | None:
 
 def _hermes_icon_svg(size: int = 512) -> str:
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {size} {size}">
-  <rect width="{size}" height="{size}" rx="{size * 0.18:.1f}" fill="#111827"/>
-  <rect x="{size * 0.08:.1f}" y="{size * 0.08:.1f}" width="{size * 0.84:.1f}" height="{size * 0.84:.1f}" rx="{size * 0.15:.1f}" fill="#1f2937" stroke="#60a5fa" stroke-width="{max(4, size * 0.02):.1f}"/>
-  <rect x="{size * 0.28:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
-  <rect x="{size * 0.60:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
-  <rect x="{size * 0.28:.1f}" y="{size * 0.43:.1f}" width="{size * 0.44:.1f}" height="{size * 0.12:.1f}" rx="{size * 0.04:.1f}" fill="#f59e0b"/>
+  <rect width="{size}" height="{size}" rx="{size * 0.18:.1f}" fill="{_HERMES_ICON_OUTER}"/>
+  <rect x="{size * 0.08:.1f}" y="{size * 0.08:.1f}" width="{size * 0.84:.1f}" height="{size * 0.84:.1f}" rx="{size * 0.15:.1f}" fill="{_HERMES_ICON_INNER}" stroke="{_HERMES_ICON_BORDER}" stroke-width="{max(4, size * 0.02):.1f}"/>
+  <rect x="{size * 0.28:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="{_HERMES_ICON_MARK}"/>
+  <rect x="{size * 0.60:.1f}" y="{size * 0.18:.1f}" width="{size * 0.12:.1f}" height="{size * 0.64:.1f}" rx="{size * 0.04:.1f}" fill="{_HERMES_ICON_MARK}"/>
+  <rect x="{size * 0.28:.1f}" y="{size * 0.43:.1f}" width="{size * 0.44:.1f}" height="{size * 0.12:.1f}" rx="{size * 0.04:.1f}" fill="{_HERMES_ICON_MARK}"/>
 </svg>"""
 
 
@@ -519,7 +524,7 @@ def _hermes_icon_png_bytes(size: int) -> bytes:
     if Image is None or ImageDraw is None:
         return _hermes_icon_svg(size).encode('utf-8')
 
-    image = Image.new('RGBA', (size, size), '#111827')
+    image = Image.new('RGBA', (size, size), _HERMES_ICON_OUTER)
     draw = ImageDraw.Draw(image)
     radius = max(6, int(size * 0.18))
     inset = max(2, int(size * 0.08))
@@ -534,25 +539,25 @@ def _hermes_icon_png_bytes(size: int) -> bytes:
     draw.rounded_rectangle(
         (inset, inset, size - inset, size - inset),
         radius=radius,
-        fill='#1f2937',
-        outline='#60a5fa',
+        fill=_HERMES_ICON_INNER,
+        outline=_HERMES_ICON_BORDER,
         width=border,
     )
     draw.rounded_rectangle(
         (bar_x, bar_top, bar_x + bar, bar_bottom),
         radius=max(2, int(size * 0.04)),
-        fill='#f59e0b',
+        fill=_HERMES_ICON_MARK,
     )
     right_x = int(size * 0.60)
     draw.rounded_rectangle(
         (right_x, bar_top, right_x + bar, bar_bottom),
         radius=max(2, int(size * 0.04)),
-        fill='#f59e0b',
+        fill=_HERMES_ICON_MARK,
     )
     draw.rounded_rectangle(
         (bar_x, center_y, right_x + bar, center_y + bar),
         radius=max(2, int(size * 0.04)),
-        fill='#f59e0b',
+        fill=_HERMES_ICON_MARK,
     )
 
     buffer = BytesIO()
@@ -565,7 +570,7 @@ def _hermes_icon_ico_bytes(size: int = 64) -> bytes:
     if Image is None or ImageDraw is None:
         return _hermes_icon_svg(size).encode('utf-8')
 
-    image = Image.new('RGBA', (size, size), '#111827')
+    image = Image.new('RGBA', (size, size), _HERMES_ICON_OUTER)
     draw = ImageDraw.Draw(image)
     radius = max(4, int(size * 0.18))
     inset = max(1, int(size * 0.08))
@@ -581,16 +586,16 @@ def _hermes_icon_ico_bytes(size: int = 64) -> bytes:
     draw.rounded_rectangle(
         (inset, inset, size - inset, size - inset),
         radius=radius,
-        fill='#1f2937',
-        outline='#60a5fa',
+        fill=_HERMES_ICON_INNER,
+        outline=_HERMES_ICON_BORDER,
         width=border,
     )
-    draw.rounded_rectangle((bar_x, bar_top, bar_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill='#f59e0b')
-    draw.rounded_rectangle((right_x, bar_top, right_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill='#f59e0b')
+    draw.rounded_rectangle((bar_x, bar_top, bar_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill=_HERMES_ICON_MARK)
+    draw.rounded_rectangle((right_x, bar_top, right_x + bar, bar_bottom), radius=max(1, int(size * 0.04)), fill=_HERMES_ICON_MARK)
     draw.rounded_rectangle(
         (bar_x, center_y, right_x + bar, center_y + bar),
         radius=max(1, int(size * 0.04)),
-        fill='#f59e0b',
+        fill=_HERMES_ICON_MARK,
     )
 
     buffer = BytesIO()
@@ -812,13 +817,47 @@ log = logging.getLogger(__name__)
 
 
 class SPAStaticFiles(StaticFiles):
+    def _resolve_immutable_hash_fallback(self, path: str) -> str | None:
+        normalized_path = path.lstrip('/')
+
+        if not normalized_path.startswith('_app/immutable/'):
+            return None
+
+        requested = Path(normalized_path)
+        name_parts = requested.name.split('.')
+        if len(name_parts) < 3:
+            return None
+
+        # SvelteKit immutable assets follow <name>.<hash>.<ext>.
+        # When a browser keeps an older HTML/app shell cached across a rebuild,
+        # it can legitimately request the previous hashed filename. In that case
+        # serve the current asset with the same logical prefix instead of
+        # surfacing a hard 404 that collapses into a 500 error page.
+        logical_prefix = '.'.join(name_parts[:-2])
+        suffix = f".{name_parts[-1]}"
+        candidate_dir = Path(self.directory) / requested.parent
+
+        if not candidate_dir.is_dir():
+            return None
+
+        matches = sorted(candidate_dir.glob(f'{logical_prefix}.*{suffix}'))
+        if not matches:
+            return None
+
+        fallback_path = matches[0].relative_to(self.directory)
+        return fallback_path.as_posix()
+
     async def get_response(self, path: str, scope):
         try:
             return await super().get_response(path, scope)
         except (HTTPException, StarletteHTTPException) as ex:
             if ex.status_code == 404:
+                fallback_path = self._resolve_immutable_hash_fallback(path)
+                if fallback_path is not None:
+                    return await super().get_response(fallback_path, scope)
+
                 if path.endswith('.js'):
-                    # Return 404 for javascript files
+                    # Return 404 for non-recoverable javascript files
                     raise ex
                 else:
                     return await super().get_response('index.html', scope)

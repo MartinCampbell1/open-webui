@@ -128,17 +128,23 @@
 			"
 				>
 					{#if showModelSelector}
-						<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
+						<div class="flex min-w-0 items-start gap-2">
+							<div
+								class="mt-[2px] hidden shrink-0 rounded-full bg-gray-100/80 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:bg-gray-800/80 dark:text-gray-500 lg:block"
+							>
+								{$i18n.t('Model')}
+							</div>
+							<div class="min-w-0 flex-1">
+								<ModelSelector bind:selectedModels showSetDefault={!shareEnabled} />
+							</div>
+						</div>
 					{/if}
 				</div>
 
 				<div class="self-start flex flex-none items-center text-gray-600 dark:text-gray-400">
 					<!-- <div class="md:hidden flex self-center w-[1px] h-5 mx-2 bg-gray-300 dark:bg-stone-700" /> -->
 
-					{#if !HERMES_ONLY_CHAT && ($user?.role === 'user'
-						? ($user?.permissions?.chat?.temporary ?? true) &&
-							!($user?.permissions?.chat?.temporary_enforced ?? false)
-						: true)}
+					{#if !HERMES_ONLY_CHAT && ($user?.role === 'user' ? ($user?.permissions?.chat?.temporary ?? true) && !($user?.permissions?.chat?.temporary_enforced ?? false) : true)}
 						{#if !chat?.id}
 							<Tooltip content={$i18n.t(`Temporary Chat`)}>
 								<button
@@ -233,18 +239,20 @@
 
 					{#if shouldShowHermesQuickActions}
 						<div
-							class="mx-1 flex shrink-0 items-center gap-0.5 rounded-xl bg-gray-50/70 px-1 py-0.5 dark:bg-gray-850/70"
+							class="mx-0.5 flex shrink-0 items-center gap-0.5 rounded-xl border border-gray-200/70 bg-transparent px-0.5 py-0.5 dark:border-gray-800/80"
 						>
 							<Tooltip content={$i18n.t('Workspace')}>
 								<button
-									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
+									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-gray-100/80 dark:hover:bg-gray-800 transition"
 									on:click={() => openControlsTo('workspace')}
 									aria-label={$i18n.t('Workspace')}
 								>
 									<div class="m-auto self-center shrink-0">
 										<FolderOpen className="size-4" />
 									</div>
-									<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
+									<span
+										class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium"
+									>
 										{$i18n.t('Workspace')}
 									</span>
 								</button>
@@ -252,31 +260,35 @@
 
 							<Tooltip content={$i18n.t('Context')}>
 								<button
-									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
+									class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-gray-100/80 dark:hover:bg-gray-800 transition"
 									on:click={() => openControlsTo('session')}
 									aria-label={$i18n.t('Context')}
 								>
 									<div class="m-auto self-center shrink-0">
 										<ClockRotateRight className="size-4" />
 									</div>
-									<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
+									<span
+										class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium"
+									>
 										{$i18n.t('Context')}
 									</span>
 								</button>
 							</Tooltip>
 
 							{#if shouldShowTasksQuickAction}
-								<Tooltip content={$i18n.t('Live run')}>
+								<Tooltip content={$i18n.t('Active run')}>
 									<button
-										class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-white dark:hover:bg-gray-800 transition"
+										class="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg px-1.5 py-1.5 2xl:px-2 hover:bg-gray-100/80 dark:hover:bg-gray-800 transition"
 										on:click={() => openControlsTo('tasks')}
-										aria-label={$i18n.t('Live run')}
+										aria-label={$i18n.t('Active run')}
 									>
 										<div class="m-auto self-center shrink-0">
 											<QueueList className="size-4" />
 										</div>
-										<span class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium">
-											{$i18n.t('Live run')}
+										<span
+											class="hidden 2xl:inline whitespace-nowrap text-[12px] leading-none font-medium"
+										>
+											{$i18n.t('Run')}
 										</span>
 									</button>
 								</Tooltip>
@@ -287,7 +299,7 @@
 					{#if showControlsButton && ($user?.role === 'admin' || ($user?.permissions.chat?.controls ?? true))}
 						<Tooltip content={$i18n.t('Controls')}>
 							<button
-								class=" flex cursor-pointer px-2 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+								class=" flex cursor-pointer px-1.5 py-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-850 transition"
 								on:click={async () => {
 									await showControls.set(!$showControls);
 								}}

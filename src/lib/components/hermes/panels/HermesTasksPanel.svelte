@@ -14,10 +14,10 @@
 	<div class="flex items-center justify-between gap-2 px-2 pb-2">
 		<div>
 			<div class="text-sm font-medium text-gray-800 dark:text-gray-100">
-				{$i18n.t('Running tasks')}
+				{$i18n.t('Current run')}
 			</div>
 			<div class="text-[11px] text-gray-400 dark:text-gray-500">
-				{$i18n.t('Active in this chat')} · {visibleTaskIds.length}
+				{$i18n.t('Background work that belongs to this chat only')} · {visibleTaskIds.length}
 			</div>
 		</div>
 
@@ -29,15 +29,25 @@
 					await stopResponse();
 				}}
 			>
-				{$i18n.t('Stop generation')}
+				{$i18n.t('Stop current run')}
 			</button>
 		{/if}
+	</div>
+
+	<div
+		class="mx-2 mb-2 rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 text-[11px] leading-4 text-gray-500 dark:border-gray-800/80 dark:bg-gray-900/50 dark:text-gray-400"
+	>
+		{$i18n.t(
+			'These entries appear when Hermes is still responding or has background work in flight. They are not global tasks for the whole product.'
+		)}
 	</div>
 
 	<div class="flex-1 min-h-0 overflow-y-auto px-1 pb-2">
 		{#if visibleTaskIds.length === 0}
 			<div class="px-3 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-				{$i18n.t('No running tasks in this chat.')}
+				{$i18n.t(
+					'No active run right now. Start a new response and Hermes will show live work here.'
+				)}
 			</div>
 		{:else}
 			<div class="flex flex-col gap-1.5">
@@ -50,7 +60,7 @@
 								<div
 									class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
 								>
-									{$i18n.t('Task reference')}
+									{$i18n.t('Live Hermes run')}
 								</div>
 								<div class="mt-1 line-clamp-1 font-mono text-xs text-gray-700 dark:text-gray-200">
 									{taskId}

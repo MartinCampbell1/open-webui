@@ -210,18 +210,18 @@
 		}
 
 		if (isCurrentSession(session)) {
-			return $i18n.t('Attached to chat');
+			return $i18n.t('Open this chat');
 		}
 
 		if (session.imported_chat_archived) {
-			return $i18n.t('Open archived');
+			return $i18n.t('Open archived chat');
 		}
 
 		if (session.imported_chat_id) {
-			return $i18n.t('Open existing');
+			return $i18n.t('Open imported chat');
 		}
 
-		return $i18n.t('Import and open');
+		return $i18n.t('Import into chat');
 	};
 
 	const formatSessionActivityLabel = (session: HermesSessionListItem) => {
@@ -568,7 +568,7 @@
 							{$i18n.t('Search archive')}
 						</div>
 						<div class="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-							{$i18n.t('Previous CLI and runtime sessions live here. Open one or import it as a conversation.')}
+							{$i18n.t('Raw Hermes sessions are stored here. Open an imported chat, or import a raw session into this chat to continue working with it.')}
 						</div>
 					</div>
 
@@ -638,7 +638,7 @@
 							{$i18n.t('Hermes archive')}
 						</div>
 						<div class="text-[11px] text-gray-400 dark:text-gray-500">
-							{$i18n.t('Raw CLI and runtime sessions')} · {visibleSessions.length}
+							{$i18n.t('Raw Hermes sessions')} · {visibleSessions.length}
 							{#if hasSessionNarrowing}
 								/ {baseVisibleSessions.length}
 							{:else if auxiliarySessions.length > 0 && !showAuxiliarySessions}
@@ -801,7 +801,7 @@
 												{/if}
 											</div>
 
-											<div class="flex justify-start">
+											<div class="flex justify-start items-center gap-2 flex-wrap">
 												<button
 													type="button"
 													class="max-w-full whitespace-nowrap rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
@@ -823,6 +823,15 @@
 												>
 													{getSessionActionLabel(session)}
 												</button>
+												{#if !isCurrentSession(session) && !session.imported_chat_id}
+													<div class="text-[11px] text-gray-400 dark:text-gray-500">
+														{$i18n.t('Imports this raw session into the current chat so you can continue from it here.')}
+													</div>
+												{:else if session.imported_chat_id}
+													<div class="text-[11px] text-gray-400 dark:text-gray-500">
+														{$i18n.t('Opens the chat that already contains this Hermes session.')}
+													</div>
+												{/if}
 											</div>
 										</div>
 									</div>

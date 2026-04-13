@@ -1,0 +1,29 @@
+Continue the same replay conversation after the upstream stream idle timeout.
+
+Do NOT restart a broad audit.
+You already spent too many turns reading.
+Now do one bounded slice only.
+
+Slice scope only:
+1. Left sidebar current/selected row polish
+   - current row should stop looking cheap/generic
+   - improve selected/current/hover hierarchy without redesign drift
+   - avoid ugly border-selection feel
+   - keep Open WebUI identity
+2. Archive semantics clarity in the right panel
+   - make it clearer whether archive items are raw Hermes sessions and what the main action does
+   - improve action labels/helper copy so import/open/continue semantics are understandable
+3. Clarify ambiguous labels in the right panel
+   - “Current turn” / “Active tasks” / similar terms should be clearer and less confusing if present
+   - if a label is confusing, rename it to something more self-explanatory
+4. Add a discoverable settings/model/provider path
+   - if there is already a settings modal/entry point, add a visible micro-affordance or explanatory hint so user can find model/provider/API key management
+   - do not add a giant new settings page
+
+Important:
+- Patch now. No more broad searching.
+- Use the anchors you already read.
+- Keep this to a small number of files.
+- Prefer shipping this slice over planning the entire universe.
+
+Then run lightweight verification and summarize exact files changed.

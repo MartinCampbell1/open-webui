@@ -11,7 +11,7 @@
 </script>
 
 <div
-	class="mt-2.5 mb-1.5 w-full rounded-xl border border-gray-100/80 bg-gray-50/80 px-3 py-2.5 dark:border-gray-800/80 dark:bg-gray-900/50"
+	class="mt-2.5 mb-1.5 w-full rounded-lg border border-gray-100/60 bg-gray-50/55 px-3 py-2 dark:border-white/6 dark:bg-white/[0.03]"
 >
 	<div class="flex items-center justify-between gap-2">
 		<div
@@ -34,14 +34,14 @@
 
 		{#if meta}
 			<div
-				class="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-[11px] text-gray-400 dark:bg-gray-950/70 dark:text-gray-500"
+				class="shrink-0 rounded-full bg-white/70 px-2 py-0.5 text-[11px] text-gray-400 dark:bg-white/[0.04] dark:text-gray-500"
 			>
 				{meta}
 			</div>
 		{/if}
 	</div>
 
-	<div class="mt-2 flex flex-col gap-2">
+	<div class="mt-1.5 flex flex-col gap-1.5">
 		<slot />
 	</div>
 </div>

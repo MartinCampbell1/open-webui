@@ -70,10 +70,7 @@
 	import Note from '../icons/Note.svelte';
 	import { slide } from 'svelte/transition';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
-	import {
-		buildHermesAwareChatList,
-		refreshHermesSessionStores
-	} from '$lib/utils/hermesSessions';
+	import { buildHermesAwareChatList, refreshHermesSessionStores } from '$lib/utils/hermesSessions';
 
 	const BREAKPOINT = 768;
 
@@ -292,7 +289,7 @@
 		}
 
 		image.dataset.fallbackLoaded = 'true';
-		image.src = `${WEBUI_BASE_URL}/static/favicon.png`;
+		image.src = `${WEBUI_BASE_URL}/favicon.svg`;
 	};
 
 	const loadMoreChats = async () => {
@@ -322,13 +319,13 @@
 		($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true));
 	$: showSidebarWorkspace =
 		$user?.role === 'admin' ||
-			$user?.permissions?.workspace?.models ||
-			$user?.permissions?.workspace?.knowledge ||
-			$user?.permissions?.workspace?.prompts ||
-			$user?.permissions?.workspace?.tools;
+		$user?.permissions?.workspace?.models ||
+		$user?.permissions?.workspace?.knowledge ||
+		$user?.permissions?.workspace?.prompts ||
+		$user?.permissions?.workspace?.tools;
 	$: showSidebarModels =
 		($models ?? []).length > 0 &&
-		((($settings?.pinnedModels ?? []).length > 0) || $config?.default_pinned_models);
+		(($settings?.pinnedModels ?? []).length > 0 || $config?.default_pinned_models);
 	$: showSidebarChannels =
 		$config?.features?.enable_channels &&
 		($user?.role === 'admin' || ($user?.permissions?.features?.channels ?? true));
@@ -800,7 +797,7 @@
 					>
 						<div class=" self-center flex items-center justify-center size-9">
 							<img
-								src="/favicon.png"
+								src="/favicon.svg"
 								class="sidebar-new-chat-icon size-6 rounded-full group-hover:hidden"
 								alt=""
 								on:error={handleSidebarLogoError}
@@ -996,7 +993,7 @@
 				>
 					<img
 						crossorigin="anonymous"
-						src="/favicon.png"
+						src="/favicon.svg"
 						class="sidebar-new-chat-icon size-6 rounded-full"
 						alt=""
 						on:error={handleSidebarLogoError}
@@ -1147,34 +1144,36 @@
 				</div>
 
 				{#if totalVisibleHermesSidebarSessions > 0}
-					<div class="px-2 pt-1.5">
-						<div class="flex items-center justify-between gap-3 px-1.5">
-							<div class="min-w-0 flex flex-1 items-center gap-2 text-left">
-								<div
-									class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-								>
-									{$i18n.t('Hermes archive')}
+					<div class="px-2 pt-2">
+						<div
+							class="rounded-xl border border-gray-100/80 bg-white/75 px-3 py-2 dark:border-gray-800/80 dark:bg-gray-900/45"
+						>
+							<div class="flex items-center justify-between gap-3">
+								<div class="min-w-0 flex flex-1 items-center gap-2 text-left">
+									<div
+										class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+									>
+										{$i18n.t('Hermes archive')}
+									</div>
+									<div
+										class="inline-flex h-6 min-w-[2.3rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium tabular-nums leading-none text-gray-500 dark:bg-gray-800 dark:text-gray-300"
+									>
+										{totalVisibleHermesSidebarSessions}
+									</div>
 								</div>
-								<div
-									class="inline-flex h-7 min-w-[2.8rem] shrink-0 items-center justify-center whitespace-nowrap rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium tabular-nums leading-none text-gray-500 dark:bg-gray-800 dark:text-gray-300"
+
+								<button
+									type="button"
+									class="shrink-0 rounded-full bg-gray-100/80 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+									on:click={openHermesArchivePanel}
 								>
-									{totalVisibleHermesSidebarSessions}
-								</div>
+									{$i18n.t('Browse')}
+								</button>
 							</div>
 
-							<button
-								type="button"
-								class="shrink-0 rounded-full bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-								on:click={openHermesArchivePanel}
-							>
-								{$i18n.t('Open archive')}
-							</button>
-						</div>
-
-						<div class="mt-1.5 px-1.5 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
-							{$i18n.t(
-								'Previous Hermes terminal sessions live in the archive. Import only the ones you want to keep as conversations.'
-							)}
+							<div class="mt-1 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+								{$i18n.t('Global Hermes terminal archive, separate from the current chat list.')}
+							</div>
 						</div>
 					</div>
 				{/if}
@@ -1443,7 +1442,7 @@
 								{#each orderedChats as chat, idx (`chat-${chat?.id ?? idx}`)}
 									{#if idx === 0 || (idx > 0 && chat.time_range !== orderedChats[idx - 1].time_range)}
 										<div
-											class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx ===
+											class="w-full pl-3 text-[11px] uppercase tracking-[0.06em] text-gray-400 dark:text-gray-500 font-medium {idx ===
 											0
 												? ''
 												: 'pt-5'} pb-1.5"

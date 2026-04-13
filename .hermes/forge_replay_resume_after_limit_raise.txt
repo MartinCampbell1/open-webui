@@ -1,0 +1,28 @@
+Continue the same replay conversation. Forge limits have been raised; continue execution instead of stopping early.
+
+State so far:
+- Clean baseline worktree: /Users/martin/open-webui-replay-ee465f at ee465f165.
+- Goal: preserve this baseline's right-sidebar/session/archive/workspace/dialog structure.
+- Dirty source tree for selective replay: /Users/martin/open-webui.
+- Some safe replay changes have already been manually applied to the clean baseline in:
+  - src/lib/components/chat/Messages.svelte
+  - src/lib/components/chat/Chat.svelte
+  - src/lib/components/chat/MessageInput.svelte
+
+Your task now:
+1. Inspect the remaining target files against the dirty source tree:
+   - src/lib/components/chat/Messages/ResponseMessage.svelte
+   - src/lib/components/chat/Messages/UserMessage.svelte
+   - src/app.css
+   - src/lib/components/layout/Sidebar/ChatItem.svelte
+   - src/lib/components/chat/Navbar.svelte
+2. Apply only genuinely good portable improvements from the dirty tree onto this clean baseline.
+3. Do not disturb preserved baseline structure:
+   - do not remove Archive/dialog/session surfaces
+   - do not flatten the right sidebar
+   - do not reintroduce the top context strip
+   - do not compress away the richer workspace presentation
+4. Run lightweight verification on changed files.
+5. Summarize exactly what was replayed.
+
+Stop auditing broadly. Patch directly and keep the scope narrow.

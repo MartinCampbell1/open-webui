@@ -19,6 +19,8 @@
 	import Message from './Messages/Message.svelte';
 	import Loader from '../common/Loader.svelte';
 	import Spinner from '../common/Spinner.svelte';
+	import HermesImportedToolGroup from '$lib/components/hermes/transcript/HermesImportedToolGroup.svelte';
+	import { isHermesImportedToolMessage } from '$lib/utils/hermesTranscript';
 
 	import ChatPlaceholder from './ChatPlaceholder.svelte';
 
@@ -36,6 +38,7 @@
 	export let atSelectedModel;
 
 	let messages = [];
+	let messageItems = [];
 
 	export let setInputText: Function = () => {};
 
@@ -99,6 +102,31 @@
 		messages = _messages.reverse();
 	};
 
+	const buildMessageItems = () => {
+		const items = [];
+
+		for (let idx = 0; idx < messages.length; idx += 1) {
+			const message = messages[idx];
+			if (!message) continue;
+
+			if (isHermesImportedToolMessage(message)) {
+				const ids = [message.id];
+				let nextIdx = idx + 1;
+				while (nextIdx < messages.length && isHermesImportedToolMessage(messages[nextIdx])) {
+					ids.push(messages[nextIdx].id);
+					nextIdx += 1;
+				}
+				items.push({ type: 'tool-group', key: `tool-group-${ids[0]}-${ids.length}`, ids });
+				idx = nextIdx - 1;
+				continue;
+			}
+
+			items.push({ type: 'message', key: message.id, id: message.id });
+		}
+
+		messageItems = items;
+	};
+
 	// Throttle message list rebuilds to once per animation frame during streaming.
 	// Structural changes (currentId change) always rebuild immediately.
 	const handleHistoryChange = (currentId, _messages) => {
@@ -127,6 +155,7 @@
 	};
 
 	$: handleHistoryChange(history.currentId, history.messages);
+	$: buildMessageItems();
 
 	$: if (autoScroll && bottomPadding) {
 		(async () => {
@@ -433,13 +462,19 @@
 	});
 
 	const triggerScroll = () => {
-		if (autoScroll) {
-			const element = document.getElementById('messages-container');
-			autoScroll = element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
-			setTimeout(() => {
-				scrollToBottom();
-			}, 100);
+		if (!autoScroll) {
+			return;
 		}
+
+		const element = document.getElementById('messages-container');
+		if (!element) {
+			return;
+		}
+
+		autoScroll = element.scrollHeight - element.scrollTop <= element.clientHeight + 50;
+		requestAnimationFrame(() => {
+			scrollToBottom();
+		});
 	};
 </script>
 
@@ -453,8 +488,7 @@
 					<h2 class="sr-only" id="chat-conversation">{$i18n.t('Chat Conversation')}</h2>
 					{#if messages.at(0)?.parentId !== null}
 						<Loader
-							on:visible={(e) => {
-								console.log('visible');
+							on:visible={() => {
 								if (!messagesLoading) {
 									loadMoreMessages();
 								}
@@ -467,36 +501,40 @@
 						</Loader>
 					{/if}
 					<ul role="log" aria-live="polite" aria-relevant="additions" aria-atomic="false">
-						{#each messages as message, messageIdx (message.id)}
-							<Message
-								{chatId}
-								bind:history
-								{chatHermesSession}
-								{selectedModels}
-								messageId={message.id}
-								idx={messageIdx}
-								{user}
-								{setInputText}
-								{gotoMessage}
-								{showPreviousMessage}
-								{showNextMessage}
-								{updateChat}
-								{editMessage}
-								{deleteMessage}
-								{rateMessage}
-								{actionMessage}
-								{saveMessage}
-								{submitMessage}
-								{regenerateResponse}
-								{continueResponse}
-								{mergeResponses}
-								{addMessages}
-								{respondToApproval}
-								{triggerScroll}
-								{readOnly}
-								{editCodeBlock}
-								{topPadding}
-							/>
+						{#each messageItems as item, messageIdx (item.key)}
+							{#if item.type === 'tool-group'}
+								<HermesImportedToolGroup {history} messageIds={item.ids} />
+							{:else}
+								<Message
+									{chatId}
+									bind:history
+									{chatHermesSession}
+									{selectedModels}
+									messageId={item.id}
+									idx={messageIdx}
+									{user}
+									{setInputText}
+									{gotoMessage}
+									{showPreviousMessage}
+									{showNextMessage}
+									{updateChat}
+									{editMessage}
+									{deleteMessage}
+									{rateMessage}
+									{actionMessage}
+									{saveMessage}
+									{submitMessage}
+									{regenerateResponse}
+									{continueResponse}
+									{mergeResponses}
+									{addMessages}
+									{respondToApproval}
+									{triggerScroll}
+									{readOnly}
+									{editCodeBlock}
+									{topPadding}
+								/>
+							{/if}
 						{/each}
 					</ul>
 				</section>

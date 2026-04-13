@@ -14,6 +14,9 @@
 
 	let selectedCodeExecution: any = null;
 	let showCodeExecutionModal = false;
+	let expanded = false;
+
+	const COLLAPSED_TOOL_LIMIT = 2;
 
 	$: if (codeExecutions) {
 		updateSelectedCodeExecution();
@@ -50,6 +53,11 @@
 		chatControlsOpenTarget.set('workspace');
 		showControls.set(true);
 	};
+
+	$: hasOverflow = compact && codeExecutions.length > COLLAPSED_TOOL_LIMIT;
+	$: visibleCodeExecutions =
+		hasOverflow && !expanded ? codeExecutions.slice(0, COLLAPSED_TOOL_LIMIT) : codeExecutions;
+	$: overflowCount = hasOverflow ? codeExecutions.length - COLLAPSED_TOOL_LIMIT : 0;
 </script>
 
 <CodeExecutionModal
@@ -59,7 +67,7 @@
 
 {#if codeExecutions.length > 0}
 	<div class="w-full flex flex-col gap-1 {compact ? '' : 'mt-1 mb-2'}">
-		{#each codeExecutions as execution (execution.id)}
+		{#each visibleCodeExecutions as execution (execution.id)}
 			{@const executionSummary = getHermesToolExecutionSurfaceSummary(
 				execution,
 				$i18n.t('Completed')
@@ -79,5 +87,21 @@
 				onActionClick={openWorkspace}
 			/>
 		{/each}
+
+		{#if hasOverflow}
+			<button
+				type="button"
+				class="mt-0.5 self-start rounded-full bg-gray-100/80 px-2.5 py-1 text-[11px] font-medium text-gray-500 transition hover:bg-gray-200 hover:text-gray-700 dark:bg-white/[0.06] dark:text-gray-300 dark:hover:bg-white/[0.1]"
+				on:click={() => {
+					expanded = !expanded;
+				}}
+			>
+				{#if expanded}
+					{$i18n.t('Collapse tool activity')}
+				{:else}
+					{$i18n.t('+{{COUNT}} more tool steps', { COUNT: overflowCount })}
+				{/if}
+			</button>
+		{/if}
 	</div>
 {/if}

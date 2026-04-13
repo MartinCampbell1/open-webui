@@ -140,20 +140,8 @@
 	export let messageId;
 	export let selectedModels = [];
 
-	let message: MessageType = structuredClone(history.messages[messageId]);
-	$: if (history.messages) {
-		const source = history.messages[messageId];
-		if (source) {
-			// Fast path: O(1) check on the fields that change most often (content during streaming, done at end)
-			// Avoids 2x O(n) JSON.stringify calls that are always true during streaming anyway
-			if (message.content !== source.content || message.done !== source.done) {
-				message = structuredClone(source);
-			} else if (JSON.stringify(message) !== JSON.stringify(source)) {
-				// Slow path: full comparison for infrequent changes (sources, annotations, status, etc.)
-				message = structuredClone(source);
-			}
-		}
-	}
+	let message = history?.messages?.[messageId] as MessageType;
+	$: message = history?.messages?.[messageId] as MessageType;
 
 	export let siblings;
 
@@ -195,7 +183,9 @@
 		Object.keys(chatHermesSession).length > 0;
 	$: hermesInheritedModelName =
 		(isHermesChat ? chatHermesSession?.model : null) ?? model?.name ?? message.model ?? '';
-	$: displayModelName = isHermesChat ? 'Hermes' : (message.modelName ?? model?.name ?? message.model);
+	$: displayModelName = isHermesChat
+		? 'Hermes'
+		: (message.modelName ?? model?.name ?? message.model);
 	$: inheritedModelName = isHermesChat
 		? hermesInheritedModelName && hermesInheritedModelName !== displayModelName
 			? hermesInheritedModelName
@@ -218,6 +208,8 @@
 	$: toolActivityCount = message?.code_executions?.length ?? 0;
 	$: hasOperationalActivity = hasVisibleStatus || toolActivityCount > 0;
 	$: hasApproval = !!message?.hermesApproval;
+	$: readingColumnClass =
+		isHermesChat && !($settings?.widescreenMode ?? null) ? 'mx-auto max-w-[47.5rem]' : 'max-w-full';
 	$: approvalMeta = hasApproval ? getHermesApprovalSummary(message.hermesApproval) : '';
 	$: operationalSectionCount = [hasApproval, hasVisibleStatus, toolActivityCount > 0].filter(
 		Boolean
@@ -249,8 +241,7 @@
 			: toolActivityCount === 1
 				? $i18n.t('1 tool activity')
 				: '';
-	$: operationalTitle =
-		hasApproval || hasOperationalActivity ? $i18n.t('Trust layer') : '';
+	$: operationalTitle = hasApproval || hasOperationalActivity ? $i18n.t('Run activity') : '';
 
 	let edit = false;
 	let editedContent = '';
@@ -743,7 +734,7 @@
 			</Name>
 
 			<div>
-				<div class="chat-{message.role} w-full min-w-full markdown-prose">
+				<div class="chat-{message.role} w-full min-w-0 markdown-prose {readingColumnClass}">
 					<div>
 						{#if message?.files && message.files?.filter((f) => f.type === 'image').length > 0}
 							<div
@@ -884,12 +875,8 @@
 										? (message?.done ?? false)
 										: true}
 									{model}
-									onTaskClick={async (e) => {
-										console.log(e);
-									}}
+									onTaskClick={async () => {}}
 									onSourceClick={async (id) => {
-										console.log(id);
-
 										if (citationsElement) {
 											citationsElement?.showSourceModal(id);
 										}
@@ -998,7 +985,7 @@
 				{#if !edit}
 					<div
 						bind:this={buttonsContainerElement}
-						class="flex justify-start overflow-x-auto buttons text-gray-600 dark:text-gray-500 mt-0.5"
+						class="flex justify-start overflow-x-auto buttons text-gray-600 dark:text-gray-500 mt-0.5 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
 					>
 						{#if message.done || siblings.length > 1}
 							{#if siblings.length > 1}

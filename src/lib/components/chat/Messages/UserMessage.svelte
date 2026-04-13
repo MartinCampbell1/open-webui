@@ -52,17 +52,8 @@
 	let messageEditTextAreaElement: HTMLTextAreaElement;
 	let editScrollContainer: HTMLDivElement;
 
-	let message = structuredClone(history.messages[messageId]);
-	$: if (history.messages) {
-		const source = history.messages[messageId];
-		if (source) {
-			if (message.content !== source.content) {
-				message = structuredClone(source);
-			} else if (JSON.stringify(message) !== JSON.stringify(source)) {
-				message = structuredClone(source);
-			}
-		}
-	}
+	let message = history?.messages?.[messageId];
+	$: message = history?.messages?.[messageId];
 
 	const copyToClipboard = async (text) => {
 		const res = await _copyToClipboard(text);
@@ -74,7 +65,7 @@
 	const editMessageHandler = async () => {
 		edit = true;
 		editedContent = message?.content ?? '';
-		editedFiles = message.files;
+		editedFiles = Array.isArray(message?.files) ? [...message.files] : [];
 
 		await tick();
 
@@ -198,7 +189,7 @@
 			</div>
 		{/if}
 
-		<div class="chat-{message.role} w-full min-w-full markdown-prose">
+		<div class="chat-{message.role} mx-auto w-full min-w-0 max-w-[47.5rem] markdown-prose">
 			{#if edit !== true}
 				{#if message.files}
 					<div
@@ -369,10 +360,10 @@
 					<div class="flex {($settings?.chatBubble ?? true) ? 'justify-end pb-1' : 'w-full'}">
 						<div
 							class="rounded-3xl {($settings?.chatBubble ?? true)
-								? `max-w-[90%] px-4 py-1.5  bg-gray-50 dark:bg-gray-850 ${
+								? `max-w-[90%] md:max-w-[42rem] px-3.5 py-1.5 bg-gray-50/92 dark:bg-gray-850/92 ${
 										message.files ? 'rounded-tr-lg' : ''
 									}`
-								: ' w-full'}"
+								: 'w-full max-w-[46rem]'}"
 						>
 							{#if message.content}
 								<Markdown
@@ -391,7 +382,7 @@
 				<div
 					class=" flex {($settings?.chatBubble ?? true)
 						? 'justify-end'
-						: ''}  text-gray-600 dark:text-gray-500"
+						: ''}  text-gray-600 dark:text-gray-500 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100"
 				>
 					{#if !($settings?.chatBubble ?? true)}
 						{#if siblings.length > 1}

@@ -28,14 +28,20 @@
 	$: sourceLine = formatHermesSessionSourceLine(session);
 	$: showSecondaryDetails = showPreview || selected || mouseOver;
 	$: showActionLabel = !compact && (busy || selected || mouseOver);
-	$: sessionStateLabel = session.imported_chat_id ? $i18n.t('Imported') : $i18n.t('Ready to import');
+	$: sessionStateLabel = session.imported_chat_id
+		? session.imported_chat_archived
+			? $i18n.t('Imported archive chat')
+			: $i18n.t('Imported into chats')
+		: $i18n.t('Raw Hermes session');
 	$: actionLabel = busy
 		? session.imported_chat_id
 			? `${$i18n.t('Opening')}...`
 			: `${$i18n.t('Importing')}...`
 		: session.imported_chat_id
-			? $i18n.t('Open chat')
-			: $i18n.t('Import and open');
+			? session.imported_chat_archived
+				? $i18n.t('Open archived chat')
+				: $i18n.t('Open imported chat')
+			: $i18n.t('Import into chats');
 
 	const handleActivate = () => {
 		if (busy) {
@@ -58,7 +64,9 @@
 
 <button
 	type="button"
-	class="group flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition hover:bg-gray-50 dark:hover:bg-gray-900/70 {selected ? 'bg-gray-50 dark:bg-gray-850' : ''} {className}"
+	class="group flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-left transition hover:bg-gray-50/80 dark:hover:bg-gray-900/70 {selected
+		? 'bg-gray-50/88 dark:bg-gray-950/72'
+		: ''} {className}"
 	on:click={handleActivate}
 	on:mouseenter={handleHover}
 	on:mouseleave={() => {
@@ -73,7 +81,7 @@
 	data-arrow-selected={selected ? 'true' : undefined}
 >
 	<div
-		class="mt-1 size-2.5 shrink-0 rounded-full bg-gray-300 transition group-hover:bg-gray-400 dark:bg-gray-700 dark:group-hover:bg-gray-500"
+		class="mt-1 size-2 shrink-0 rounded-full bg-gray-300 transition group-hover:bg-gray-400 dark:bg-gray-700 dark:group-hover:bg-gray-500"
 	></div>
 
 	<div class="min-w-0 flex-1">

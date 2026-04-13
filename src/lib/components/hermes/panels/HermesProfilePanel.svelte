@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import {
@@ -37,6 +38,8 @@
 		Boolean
 	);
 	$: defaultModelLabel = $settings?.models?.[0] ?? $i18n.t('Not set');
+	$: canManageModelLibrary =
+		$user?.role === 'admin' || ($user?.permissions?.workspace?.models ?? false);
 	$: hermesProfiles = $hermesProfilesStore?.items ?? [];
 	$: activeHermesProfile =
 		(hermesProfiles.find((profile) => profile.is_active) as HermesProfile | undefined) ??
@@ -49,9 +52,7 @@
 					profile.is_active
 						? $i18n.t('Inherited Hermes profile')
 						: $i18n.t('Available Hermes profile'),
-					profile.memory_enabled || profile.has_memory
-						? $i18n.t('Profile memory enabled')
-						: '',
+					profile.memory_enabled || profile.has_memory ? $i18n.t('Profile memory enabled') : '',
 					profile.user_profile_enabled || profile.has_user_profile
 						? $i18n.t('User profile enabled')
 						: '',
@@ -188,30 +189,30 @@
 			</div>
 		{/if}
 
-			<div class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
-				{$i18n.t(
-					'Browser identity is shown here. The active Hermes profile below is the source of truth for this run; fallback model details stay in the sections below.'
-				)}
-			</div>
+		<div class="mt-3 text-xs leading-5 text-gray-500 dark:text-gray-400">
+			{$i18n.t(
+				'This shows the browser account only. The active Hermes profile below is the source of truth for the run.'
+			)}
 		</div>
+	</div>
 
 	<div
 		class="mt-2 rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 dark:border-gray-800/80 dark:bg-gray-900/50"
 	>
 		<div class="flex items-start justify-between gap-3">
 			<div class="min-w-0">
-					<div
-						class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-					>
-						{$i18n.t('Active Hermes profile')}
-					</div>
-					<div class="mt-2 line-clamp-1 text-sm font-medium text-gray-700 dark:text-gray-200">
-						{activeHermesProfile?.name ?? $hermesProfilesStore?.active_profile ?? $i18n.t('Not set')}
-					</div>
-					<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-						{$i18n.t('Source of truth for the current Hermes run.')}
-					</div>
+				<div
+					class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+				>
+					{$i18n.t('Active Hermes profile')}
 				</div>
+				<div class="mt-2 line-clamp-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+					{activeHermesProfile?.name ?? $hermesProfilesStore?.active_profile ?? $i18n.t('Not set')}
+				</div>
+				<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+					{$i18n.t('Source of truth for the current Hermes run.')}
+				</div>
+			</div>
 
 			{#if $hermesProfilesLoading}
 				<div class="mt-0.5 text-gray-400">
@@ -220,15 +221,15 @@
 			{:else if activeHermesProfile?.is_active}
 				<div
 					class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-					>
-						{$i18n.t('In use')}
-					</div>
-				{/if}
-			</div>
+				>
+					{$i18n.t('In use')}
+				</div>
+			{/if}
+		</div>
 
-			<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-				{$i18n.t('Inherited Hermes context from the active profile.')}
-			</div>
+		<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+			{$i18n.t('Inherited Hermes context from the active profile.')}
+		</div>
 
 		{#if profileLoadError}
 			<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">{profileLoadError}</div>
@@ -261,8 +262,30 @@
 				{/each}
 			</div>
 
-			<div class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-				{$i18n.t('Hermes profile decides the active model here. The Open WebUI selector is only a browser fallback.')}
+			<div class="mt-2 text-[11px] leading-4 text-gray-400 dark:text-gray-500">
+				{$i18n.t(
+					'Use the top-bar model selector to change the browser fallback model. Use settings for providers, API keys, speech, and other connections.'
+				)}
+			</div>
+
+			<div class="mt-3 flex flex-wrap gap-1.5">
+				<button
+					type="button"
+					class="rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+					on:click={() => showSettings.set(true)}
+				>
+					{$i18n.t('Open settings')}
+				</button>
+
+				{#if canManageModelLibrary}
+					<button
+						type="button"
+						class="rounded-full bg-gray-100 px-2.5 py-1 text-[11px] font-medium text-gray-600 transition hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+						on:click={() => goto('/workspace/models')}
+					>
+						{$i18n.t('Manage models')}
+					</button>
+				{/if}
 			</div>
 
 			<div class="mt-3 border-t border-gray-100/80 pt-3 dark:border-gray-800/80">
@@ -299,7 +322,7 @@
 							class="rounded-full bg-gray-900 px-2.5 py-1 text-[11px] font-medium text-white transition hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
 							on:click={() => showSettings.set(true)}
 						>
-							{$i18n.t('Open profile settings')}
+							{$i18n.t('Open model & provider settings')}
 						</button>
 
 						<button
@@ -310,19 +333,22 @@
 							{$i18n.t('Personalization')}
 						</button>
 					</div>
+					<div class="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+						{$i18n.t('Need a different model, provider, or API key? Open settings from here.')}
+					</div>
 				{/if}
 			</div>
 
 			{#if hermesProfiles.length > 1}
 				<div class="mt-3 border-t border-gray-100/80 pt-3 dark:border-gray-800/80">
-						<div
-							class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-						>
-							{$i18n.t('Available profiles')}
-						</div>
-						<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-							{$i18n.t('Inspect inherited Hermes defaults or switch the active profile.')}
-						</div>
+					<div
+						class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+					>
+						{$i18n.t('Available profiles')}
+					</div>
+					<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+						{$i18n.t('Inspect inherited Hermes defaults or switch the active profile.')}
+					</div>
 
 					<div class="mt-2 flex flex-col gap-1.5">
 						{#each hermesProfiles as profile}
@@ -437,16 +463,16 @@
 			<div
 				class="rounded-xl border border-gray-100/80 bg-white/80 px-3 py-2.5 dark:border-gray-800/80 dark:bg-gray-900/50"
 			>
-					<div
-						class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
-					>
-						{$i18n.t('Browser fallback model')}
-					</div>
-					<div class="mt-2 text-sm text-gray-700 dark:text-gray-200">{defaultModelLabel}</div>
-					<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-						{$i18n.t('Open WebUI fallback only; Hermes uses the active profile model above.')}
-					</div>
+				<div
+					class="text-[11px] font-medium uppercase tracking-[0.08em] text-gray-400 dark:text-gray-500"
+				>
+					{$i18n.t('Browser fallback model')}
+				</div>
+				<div class="mt-2 text-sm text-gray-700 dark:text-gray-200">{defaultModelLabel}</div>
+				<div class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+					{$i18n.t('Open WebUI fallback only; Hermes uses the active profile model above.')}
 				</div>
 			</div>
+		</div>
 	{/if}
 </div>

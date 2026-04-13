@@ -1,0 +1,142 @@
+Продолжаем работу в clean replay worktree:
+/Users/martin/open-webui-replay-ee465f
+
+Это важный UX/interaction pass по реальному пользовательскому фидбеку после запуска replay-версии на отдельном порту.
+
+Ключевое правило:
+- НЕ ломать текущую хорошую типографику ответов и улучшенную читаемость текста — пользователь явно похвалил это.
+- НЕ возвращаться к старому rollback state.
+- Работать только поверх current replay baseline.
+- Preserve Open WebUI identity.
+- Для новых/переработанных micro-surfaces использовать 21st.dev как источник аккуратных component/pattern решений, особенно для skills/tool surfaces.
+
+Скриншоты пользователя для ориентира:
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.07.07.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.06.44.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.04.39.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.03.58.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.02.54.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.01.56.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.00.56.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.00.36.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 22.00.03.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 21.59.46.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 21.59.30.png
+- /Users/martin/Desktop/Снимок экрана — 2026-04-12 в 21.58.18.png
+
+Сырой пользовательский фидбек, который нужно превратить в конкретные fixes:
+
+1. Левый sidebar / Hermes archive / list surfaces
+- Левая область с “Hermes archive” и всем ниже выглядит слишком generic / дешево.
+- Selected/current conversation row обводится и выделяется дешево.
+- Нужна UX-экспертиза именно по left sidebar selection, row density, hierarchy, hover/focus/current states.
+- Нужно сделать аккуратнее, дороже, спокойнее, без дешевого border-selection feel.
+
+2. User message bubble / “привет” выглядит слишком жирным и толстым
+- User bubble/row сейчас слишком жирный, слишком здоровый.
+- Нужно уменьшить визуальную тяжесть user messages, не ломая общую читаемость.
+
+3. Active tasks / current turn / inspector semantics are unclear
+- Пользователь не понимает:
+  - что такое “Активные задачи”
+  - откуда они берутся
+  - каков их source of truth
+  - что такое “Текущий ход” и зачем это нужно
+- Если surface полезен — объяснить его в UI лучше и сделать понятнее.
+- Если это UI noise — уменьшить/перестроить.
+
+4. Model selection / provider / key management are unclear or missing
+- Пользователь не понимает, как поменять модель.
+- Пользователь не понимает, куда добавлять API key / model / provider, если понадобится.
+- Нужно:
+  - проверить, есть ли вообще доступный UX path для смены модели в replay UI;
+  - если path есть, сделать его discoverable;
+  - если path нет, добавить/вернуть понятный access path, но без dashboard drift.
+- Нужно ответить product/UI-реализацией, а не только текстом.
+
+5. Workspace/files behavior
+- Workspace в целом стал лучше и выглядит хорошо.
+- Но пользователь жалуется, что при открытии файлов появляется “обрезанный файл / кусок”, какая-то дичь в preview/presentation.
+- Нужно проверить file preview / workspace content presentation и убрать broken/clipped presentation.
+- Важно сохранить богатую workspace surface, уже возвращенную в replay baseline.
+
+6. Archive semantics
+- Пользователь не понимает:
+  - архив общий или только по конкретному диалогу;
+  - можно ли из архива добавлять в диалоги;
+  - можно ли продолжать диалог из архива.
+- Он увидел, что импорт/добавление, кажется, работает, и это ему нравится.
+- Нужно сделать semantics и actions у архива предельно понятными в UI.
+
+7. Skills surface is still bad
+- Skills раньше были too large, сейчас too compressed/generic/ugly.
+- Нужно переработать skills surface с помощью 21st.dev patterns:
+  - аккуратные cards/rows
+  - разные иконки по типам навыков
+  - если это web/search skill — иконка лупы и т.п.
+- Skills должны выглядеть polished, not generic.
+- Обязательно не скатиться в redesign whole app.
+
+8. Tool call / tool activity rows look dirty and unpolished
+- Tool invocation surfaces все еще выглядят грязно/неаккуратно.
+- Нужно сделать аккуратнее visual language tool rows / tool activity / operational surfaces.
+- Пользователь явно на это жалуется.
+
+9. Inspector / Profile / Skills / Memory / Overview / Todos surfaces are semantically unclear
+- Пользователь не понимает:
+  - как добавлять skill;
+  - как добавлять memory;
+  - рабочая ли вообще memory;
+  - зачем нужен overview graph;
+  - зачем нужен checklist/todos и как им пользоваться.
+- Нужно не только styling, но и semantic UX cleanup:
+  - clearer empty states
+  - clearer actions
+  - clearer explanations
+  - where appropriate, add CTA/button/entry point
+- “Overview” возможно слишком тяжелый, слишком линейный, занимает много места и может вызывать подвисания.
+- Нужно критически оценить, нужен ли он в текущем виде, и если оставлять — сделать легче/понятнее.
+
+10. Agent icon does not fit
+- Иконка agent/age выбивается из стилистики.
+- Пользователь хочет более монохромный, black/white compatible visual fit.
+- Нужно заменить/адаптировать icon treatment so it fits the black-white theme better.
+
+11. Settings / language surface issue
+- В settings общий интерфейс выглядит прикольно.
+- Но есть мелкие seams, например язык выпирает слишком сильно визуально.
+- Нужно сделать settings surfaces более consistent/subtle where cheap and safe.
+
+12. Preserve what user likes
+- Текст ответов и типографика сейчас очень нравятся пользователю.
+- Workspace в целом наконец-то нравится.
+- Возможность тащить/import из archive ему нравится.
+- Эти части не сломать.
+
+Что нужно сделать сейчас:
+1. Превратить этот feedback в concrete implementation pass, а не просто summary.
+2. Сначала коротко перечислить:
+   - какие surfaces останутся неизменными
+   - какие Hermes UX primitives будут доработаны
+   - какие micro-surfaces будут взяты/адаптированы из 21st.dev patterns
+   - чего точно избегаем
+3. Затем внести bounded changes по самым high-impact направлениям:
+   A. left sidebar/archive/current-row polish
+   B. user message bubble weight/padding refinement
+   C. archive semantics clarity + action labels/help text
+   D. model/provider/key discoverability path
+   E. workspace file preview clipping/broken presentation
+   F. skills/tool surfaces polish using 21st.dev-like micro patterns
+   G. clarify inspector/memory/todos/overview empty states and actions
+   H. agent icon visual fit
+4. Не пытаться за один ход сделать giant rewrite. Делать bounded slices.
+5. Run lightweight verification only.
+
+Формат финального ответа:
+1. Что именно было исправлено, grouped by theme.
+2. Exact files changed.
+3. Что verified.
+4. Какие вопросы product semantics еще остаются спорными.
+5. Стал ли replay UI ближе к daily-drivable version.
+
+Делай этот pass сейчас.
